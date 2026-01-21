@@ -1,0 +1,21 @@
+{% extends 'attendance/admin_base.html' %}
+{% block page_title %}Xóa Ca làm việc{% endblock %}
+
+{% block title %}Xóa Ca làm việc{% endblock %}
+
+{% block content %}
+<h2>Xác Nhận Xóa Ca Làm Việc</h2>
+
+<div class="card" style="max-width: 600px;">
+    <p>Bạn có chắc chắn muốn xóa ca làm việc <strong>{{ shift.name }}</strong>?</p>
+    <p style="color: #e74c3c;">⚠️ Hành động này không thể hoàn tác!</p>
+
+    <form method="post" style="margin-top: 1rem;">
+        {% csrf_token %}
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-danger">🗑️ Xóa</button>
+            <a href="{% url 'shift_list' %}" class="btn btn-primary">❌ Hủy</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

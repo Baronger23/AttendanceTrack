@@ -1,0 +1,107 @@
+from django.db import models
+from django.contrib.auth.models import AbstractUser
+import json
+import numpy as np
+from datetime import datetime, time
+
+# 1. BẢNG CA LÀM VIỆC (Đưa lên trên để User tham chiếu tới)
+class WorkShift(models.Model):
+    name = models.CharField(max_length=100, default="Ca hành chính")
+    start_time = models.TimeField(default=time(8, 0))  # 08:00
+    end_time = models.TimeField(default=time(17, 0))   # 17:00
+    late_grace_period = models.IntegerField(default=15) # Phút cho phép trễ
+
+    class Meta:
+        unique_together = ['name', 'start_time', 'end_time']
+        verbose_name = 'Ca làm việc'
+        verbose_name_plural = 'Ca làm việc'
+
+    def __str__(self):
+        return f"{self.name} ({self.start_time} - {self.end_time})"
+
+# 2. BẢNG USER (Mở rộng)
+class User(AbstractUser):
+    # Các trường có sẵn của AbstractUser: username, password, first_name, last_name, email...
+
+    class Role(models.TextChoices):
+        ADMIN = "ADMIN", "Quản trị viên"
+        STAFF = "STAFF", "Nhân viên"
+    
+    class Gender(models.TextChoices):
+        MALE = "M", "Nam"
+        FEMALE = "F", "Nữ"
+        OTHER = "O", "Khác"
+
+    # --- Thông tin bổ sung ---
+    role = models.CharField(max_length=50, choices=Role.choices, default=Role.STAFF)
+    gender = models.CharField(max_length=1, choices=Gender.choices, default=Gender.MALE)
+    dob = models.DateField(null=True, blank=True, verbose_name="Ngày sinh")
+    phone = models.CharField(max_length=15, null=True, blank=True, verbose_name="Số điện thoại")
+    
+    # Liên kết ca làm việc (Mỗi nhân viên thuộc 1 ca)
+    work_shift = models.ForeignKey(WorkShift, on_delete=models.SET_NULL, null=True, blank=True)
+
+    # Lưu path trong Supabase Storage, VD: avatars/username (1).jpg
+    avatar = models.CharField(max_length=500, null=True, blank=True, verbose_name='Ảnh đại diện')
+    
+    # --- Xử lý Vector khuôn mặt ---
+    face_encoding_text = models.TextField(null=True, blank=True)
+
+    def get_avatar_url(self):
+        """Lấy public URL của avatar từ Supabase"""
+        if self.avatar:
+            from django.conf import settings
+            return f"{settings.SUPABASE_URL}/storage/v1/object/public/{settings.SUPABASE_BUCKET_NAME}/{self.avatar}"
+        return None
+
+    def set_encoding(self, encoding_array):
+        if encoding_array is not None:
+            self.face_encoding_text = json.dumps(encoding_array.tolist())
+
+    def get_encoding(self):
+        if self.face_encoding_text:
+            try:
+                data = json.loads(self.face_encoding_text)
+                return np.array(data)
+            except:
+                return None
+        return None
+
+    def __str__(self):
+        # Hiển thị tên đầy đủ nếu có, không thì hiện username
+        full_name = f"{self.last_name} {self.first_name}".strip()
+        return full_name if full_name else self.username
+
+# 3. BẢNG NHẬT KÝ CHẤM CÔNG
+class AttendanceLog(models.Model):
+    class Status(models.TextChoices):
+        ON_TIME = "ON_TIME", "Đúng giờ"
+        LATE = "LATE", "Đi muộn"
+        ABSENT = "ABSENT", "Vắng mặt" # Cái này thường dùng khi chạy cronjob cuối ngày
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='logs')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.ON_TIME)
+    snapshot = models.ImageField(upload_to='attendance_snaps/', null=True, blank=True)
+
+    # Logic tự động tính toán Đi Muộn hay Đúng Giờ ngay khi lưu
+    def save(self, *args, **kwargs):
+        # Nếu chưa có status (lần tạo đầu tiên) và User có ca làm việc
+        if not self.pk and self.user.work_shift:
+            shift = self.user.work_shift
+            check_in_time = datetime.now().time()
+            
+            # Logic so sánh giờ (cơ bản)
+            # Chuyển đổi grace_period thành phút để cộng (Logic này cần xử lý kỹ hơn chút với datetime)
+            # Ở đây mình demo logic so sánh thô:
+            if check_in_time > shift.start_time:
+                # Cần logic cộng phút grace_period phức tạp hơn ở view, 
+                # nhưng đây là chỗ để bạn hình dung logic.
+                self.status = self.Status.LATE 
+            else:
+                self.status = self.Status.ON_TIME
+                
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Check-in: {self.user.username} - {self.status}"

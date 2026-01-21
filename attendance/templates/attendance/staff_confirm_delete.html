@@ -1,0 +1,21 @@
+{% extends 'attendance/admin_base.html' %}
+{% block page_title %}Xóa Nhân viên{% endblock %}
+
+{% block title %}Xóa Nhân viên{% endblock %}
+
+{% block content %}
+<h2>Xác Nhận Xóa Nhân Viên</h2>
+
+<div class="card" style="max-width: 600px;">
+    <p>Bạn có chắc chắn muốn xóa nhân viên <strong>{{ staff.get_full_name|default:staff.username }}</strong>?</p>
+    <p style="color: #e74c3c;">⚠️ Hành động này không thể hoàn tác!</p>
+
+    <form method="post" style="margin-top: 1rem;">
+        {% csrf_token %}
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-danger">🗑️ Xóa</button>
+            <a href="{% url 'staff_list' %}" class="btn btn-primary">❌ Hủy</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends 'attendance/admin_base.html' %}
+{% block page_title %}Quản lý Ca làm việc{% endblock %}
+
+{% block title %}Danh sách Ca làm việc{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2>Danh Sách Ca Làm Việc</h2>
+    <a href="{% url 'shift_create' %}" class="btn btn-success">➕ Thêm ca làm việc</a>
+</div>
+
+<div class="card">
+    {% if shifts %}
+    <table>
+        <thead>
+            <tr>
+                <th>Tên ca</th>
+                <th>Giờ bắt đầu</th>
+                <th>Giờ kết thúc</th>
+                <th>Cho phép trễ (phút)</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for shift in shifts %}
+            <tr>
+                <td>{{ shift.name }}</td>
+                <td>{{ shift.start_time }}</td>
+                <td>{{ shift.end_time }}</td>
+                <td>{{ shift.late_grace_period }}</td>
+                <td>
+                    <a href="{% url 'shift_edit' shift.pk %}" class="btn btn-primary"
+                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Sửa</a>
+                    <a href="{% url 'shift_delete' shift.pk %}" class="btn btn-danger"
+                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Xóa</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Chưa có ca làm việc nào.</p>
+    {% endif %}
+</div>
+{% endblock %}

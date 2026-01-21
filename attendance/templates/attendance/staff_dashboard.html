@@ -1,0 +1,34 @@
+{% extends 'attendance/base.html' %}
+
+{% block title %}Dashboard Nhân viên{% endblock %}
+
+{% block content %}
+<h2>Lịch Sử Chấm Công Của Tôi</h2>
+
+<div class="card">
+    {% if my_logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Thời gian</th>
+                <th>Trạng thái</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in my_logs %}
+            <tr>
+                <td>{{ log.timestamp|date:"d/m/Y H:i:s" }}</td>
+                <td>
+                    {% if log.status == 'ON_TIME' %}✅ Đúng giờ
+                    {% elif log.status == 'LATE' %}⚠️ Đi muộn
+                    {% else %}❌ Vắng mặt{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>Chưa có lịch sử chấm công.</p>
+    {% endif %}
+</div>
+{% endblock %}

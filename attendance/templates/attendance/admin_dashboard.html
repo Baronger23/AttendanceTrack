@@ -1,0 +1,243 @@
+{% extends 'attendance/admin_base.html' %}
+
+{% block title %}Dashboard Quản trị{% endblock %}
+{% block page_title %}Dashboard Tổng quan{% endblock %}
+
+{% block content %}
+<!-- Key Metrics Rows -->
+<div class="row mb-4">
+    <!-- Total Staff Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2 border-0 border-start border-4 border-primary">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                            Tổng nhân viên</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_staff }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-users fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Present Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2 border-0 border-start border-4 border-success">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                            Đã có mặt</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ present_today }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Late Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-warning shadow h-100 py-2 border-0 border-start border-4 border-warning">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                            Đi muộn</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ late_today }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-clock fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Absent Card -->
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-danger shadow h-100 py-2 border-0 border-start border-4 border-danger">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                            Vắng mặt</div>
+                        <div class="h5 mb-0 font-weight-bold text-gray-800">{{ absent_today }}</div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-ban fa-2x text-gray-300"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div class="row mb-4">
+    <!-- Bar Chart -->
+    <div class="col-lg-8 mb-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Thống kê chấm công 7 ngày gần nhất</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-bar">
+                    <canvas id="attendanceBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pie Chart -->
+    <div class="col-lg-4 mb-4">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Tỉ lệ hôm nay</h6>
+            </div>
+            <div class="card-body">
+                <div class="chart-pie pt-4 pb-2">
+                    <canvas id="attendancePieChart"></canvas>
+                </div>
+                <div class="mt-4 text-center small">
+                    <span class="mr-2">
+                        <i class="fas fa-circle text-success"></i> Đúng giờ
+                    </span>
+                    <span class="mr-2">
+                        <i class="fas fa-circle text-warning"></i> Đi muộn
+                    </span>
+                    <span class="mr-2">
+                        <i class="fas fa-circle text-danger"></i> Vắng
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity Log -->
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Hoạt động gần đây</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-borderless align-middle" width="100%" cellspacing="0">
+                <thead>
+                    <tr class="table-light">
+                        <th>Nhân viên</th>
+                        <th>Thời gian</th>
+                        <th>Trạng thái</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in recent_logs %}
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                {% if log.user.avatar %}
+                                <img src="{{ log.user.get_avatar_url }}" class="rounded-circle mr-2" width="40"
+                                    height="40" style="object-fit:cover; margin-right: 10px;">
+                                {% else %}
+                                <img src="https://ui-avatars.com/api/?name={{ log.user.username }}&background=random"
+                                    class="rounded-circle mr-2" width="40" height="40" style="margin-right: 10px;">
+                                {% endif %}
+                                <strong>{{ log.user.get_full_name|default:log.user.username }}</strong>
+                            </div>
+                        </td>
+                        <td>{{ log.timestamp|date:"H:i:s" }}</td>
+                        <td>
+                            {% if log.status == 'ON_TIME' %}
+                            <span class="badge bg-success">Đúng giờ</span>
+                            {% elif log.status == 'LATE' %}
+                            <span class="badge bg-warning text-dark">Đi muộn</span>
+                            {% else %}
+                            <span class="badge bg-danger">Vắng mặt</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center">Chưa có dữ liệu chấm công hôm nay.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ labels_7_days|json_script:"labels-data" }}
+{{ data_7_days|json_script:"data-data" }}
+{{ pie_data|json_script:"pie-data" }}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Parse data from Django
+        const labels7Days = JSON.parse(document.getElementById('labels-data').textContent);
+        const data7Days = JSON.parse(document.getElementById('data-data').textContent);
+        const pieData = JSON.parse(document.getElementById('pie-data').textContent);
+
+        // --- Bar Chart ---
+        const ctxBar = document.getElementById("attendanceBarChart");
+        if (ctxBar) {
+            new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: labels7Days,
+                    datasets: [{
+                        label: "Số người đi làm",
+                        backgroundColor: "#4e73df",
+                        hoverBackgroundColor: "#2e59d9",
+                        borderColor: "#4e73df",
+                        data: data7Days,
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        // --- Pie Chart ---
+        const ctxPie = document.getElementById("attendancePieChart");
+        if (ctxPie) {
+            new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: ["Đúng giờ", "Đi muộn", "Vắng mặt"],
+                    datasets: [{
+                        data: pieData,
+                        backgroundColor: ['#1cc88a', '#f6c23e', '#e74a3b'],
+                        hoverBackgroundColor: ['#17a673', '#dda20a', '#be2617'],
+                        hoverBorderColor: "rgba(234, 236, 244, 1)",
+                    }],
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, position: 'bottom' }
+                    }
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

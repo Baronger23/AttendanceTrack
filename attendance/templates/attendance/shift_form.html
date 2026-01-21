@@ -1,0 +1,41 @@
+{% extends 'attendance/admin_base.html' %}
+{% block page_title %}Thông tin Ca làm việc{% endblock %}
+
+{% block title %}{% if shift %}Sửa{% else %}Thêm{% endif %} Ca làm việc{% endblock %}
+
+{% block content %}
+<h2>{% if shift %}Sửa{% else %}Thêm{% endif %} Ca Làm Việc</h2>
+
+<div class="card" style="max-width: 600px;">
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="name">Tên ca *</label>
+            <input type="text" id="name" name="name" required placeholder="VD: Ca sáng"
+                value="{{ shift.name|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="start_time">Giờ bắt đầu *</label>
+            <input type="time" id="start_time" name="start_time" required value="{{ shift.start_time|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="end_time">Giờ kết thúc *</label>
+            <input type="time" id="end_time" name="end_time" required value="{{ shift.end_time|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="late_grace_period">Cho phép trễ (phút)</label>
+            <input type="number" id="late_grace_period" name="late_grace_period"
+                value="{{ shift.late_grace_period|default:'15' }}" min="0">
+        </div>
+
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-success">💾 Lưu</button>
+            <a href="{% url 'shift_list' %}" class="btn btn-danger">❌ Hủy</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

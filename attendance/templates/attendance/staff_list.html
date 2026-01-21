@@ -1,0 +1,97 @@
+{% extends 'attendance/admin_base.html' %}
+{% block page_title %}Quản lý Nhân viên{% endblock %}
+
+{% block title %}Danh sách Nhân viên{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <h2>Danh Sách Nhân Viên</h2>
+    <a href="{% url 'staff_create' %}" class="btn btn-success">➕ Thêm nhân viên</a>
+</div>
+
+<!-- Thanh tìm kiếm đa năng -->
+<div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+    <form method="get" style="display: flex; gap: 1rem; align-items: center;">
+        <input type="text" name="search" value="{{ search_query|default:'' }}"
+            placeholder="🔍 Tìm kiếm: tên, email, SĐT, giới tính (nam/nữ)..."
+            style="flex: 1; padding: 0.75rem; border: 1px solid #ddd; border-radius: 5px; font-size: 1rem;" autofocus>
+        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">Tìm</button>
+        {% if search_query %}
+        <a href="{% url 'staff_list' %}" class="btn btn-danger" style="padding: 0.75rem 1.5rem;">Xóa lọc</a>
+        {% endif %}
+    </form>
+    {% if search_query %}
+    <p style="margin-top: 0.5rem; color: #7f8c8d; font-size: 0.9rem;">
+        Tìm thấy <strong>{{ staff_members|length }}</strong> kết quả cho "<strong>{{ search_query }}</strong>"
+    </p>
+    {% endif %}
+</div>
+
+<div class="card">
+    {% if staff_members %}
+    <table>
+        <thead>
+            <tr>
+                <th>Tên đăng nhập</th>
+                <th>Họ tên</th>
+                <th>Giới tính</th>
+                <th>Email</th>
+                <th>SĐT</th>
+                <th>Ca làm việc</th>
+                <th>Face ID</th>
+                <th>Thao tác</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for staff in staff_members %}
+            <tr>
+                <td>
+                    {% if staff.avatar %}
+                    <img src="{{ staff.get_avatar_url }}" alt="{{ staff.username }}"
+                        style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 8px; vertical-align: middle;">
+                    {% endif %}
+                    {{ staff.username }}
+                </td>
+                <td>{{ staff.get_full_name|default:"-" }}</td>
+                <td>{{ staff.get_gender_display }}</td>
+                <td>{{ staff.email|default:"-" }}</td>
+                <td>{{ staff.phone|default:"-" }}</td>
+                <td>{{ staff.work_shift|default:"-" }}</td>
+                <td>
+                    {% if staff.face_encoding_text %}
+                    <span style="color: #27ae60;" title="Đã đăng ký khuôn mặt">✅</span>
+                    {% else %}
+                    <span style="color: #e74c3c;" title="Chưa đăng ký khuôn mặt">❌</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{% url 'staff_edit' staff.pk %}" class="btn btn-primary"
+                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Sửa</a>
+                    <a href="{% url 'staff_delete' staff.pk %}" class="btn btn-danger"
+                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Xóa</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #7f8c8d;">
+        {% if search_query %}
+        Không tìm thấy nhân viên nào khớp với "{{ search_query }}".
+        {% else %}
+        Chưa có nhân viên nào.
+        {% endif %}
+    </p>
+    {% endif %}
+</div>
+
+<script>
+    // Tự động submit form khi nhấn Enter
+    document.querySelector('input[name="search"]').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.form.submit();
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,133 @@
+﻿{% extends 'attendance/base.html' %}
+
+{% block title %}{% if staff %}Sửa{% else %}Thêm{% endif %} Nhân viên{% endblock %}
+
+{% block content %}
+<h2>{% if staff %}Sửa Thông Tin{% else %}Thêm{% endif %} Nhân Viên</h2>
+
+<div class="card" style="max-width: 600px;">
+    <form method="post" enctype="multipart/form-data" data-is-edit="{% if staff %}true{% else %}false{% endif %}">
+        {% csrf_token %}
+
+        {% if not staff %}
+        <div class="form-group">
+            <label for="username">Tên đăng nhập *</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Mật khẩu *</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+            <label for="first_name">Tên</label>
+            <input type="text" id="first_name" name="first_name" value="{{ staff.first_name|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="last_name">Họ và tên đệm</label>
+            <input type="text" id="last_name" name="last_name" value="{{ staff.last_name|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" value="{{ staff.email|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="phone">Số điện thoại</label>
+            <input type="text" id="phone" name="phone" value="{{ staff.phone|default:'' }}">
+        </div>
+
+        <div class="form-group">
+            <label for="gender">Giới tính</label>
+            <select id="gender" name="gender">
+                <option value="M" {% if staff.gender=='M' or not staff %}selected{% endif %}>Nam</option>
+                <option value="F" {% if staff.gender=='F' %}selected{% endif %}>Nữ</option>
+                <option value="O" {% if staff.gender=='O' %}selected{% endif %}>Khác</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="work_shift">Ca làm việc</label>
+            <select id="work_shift" name="work_shift">
+                <option value="">-- Chọn ca --</option>
+                {% for shift in work_shifts %}
+                <option value="{{ shift.pk }}" {% if staff.work_shift_id==shift.pk %}selected{% endif %}>{{ shift.name
+                    }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="face_images">
+                {% if staff %}
+                Cập nhật ảnh khuôn mặt (5-10 ảnh) - Tùy chọn
+                {% else %}
+                Ảnh khuôn mặt (5-10 ảnh) *
+                {% endif %}
+            </label>
+            <input type="file" id="face_images" name="face_images" multiple accept="image/*" {% if not staff
+                %}required{% endif %}>
+            <small style="color: #7f8c8d; display: block; margin-top: 0.5rem;">
+                {% if staff %}
+                📸 Upload ảnh mới để thay thế ảnh cũ (ảnh cũ sẽ bị xóa)
+                {% else %}
+                📸 Upload 5-10 ảnh khuôn mặt từ các góc độ khác nhau để tăng độ chính xác nhận diện
+                {% endif %}
+            </small>
+        </div>
+
+        {% if staff and staff.avatar %}
+        <div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 5px;">
+            <strong>Ảnh hiện tại:</strong><br>
+            <img src="{{ staff.get_avatar_url }}" alt="{{ staff.username }}"
+                style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-top: 0.5rem;">
+            <br>
+            <span style="margin-top: 0.5rem; display: inline-block;">
+                <strong>Face Encoding:</strong>
+                {% if staff.face_encoding_text %}
+                <span style="color: #27ae60;">✅ Đã đăng ký</span>
+                {% else %}
+                <span style="color: #e74c3c;">❌ Chưa đăng ký - Upload ảnh mới để tạo encoding</span>
+                {% endif %}
+            </span>
+        </div>
+        {% elif staff %}
+        <div style="margin: 1rem 0; padding: 1rem; background: #fff3cd; border-radius: 5px; border: 1px solid #ffc107;">
+            <strong>⚠️ Chưa có ảnh và Face Encoding</strong><br>
+            <small>Vui lòng upload 5-10 ảnh khuôn mặt để nhân viên có thể chấm công</small>
+        </div>
+        {% endif %}
+
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-success">💾 Lưu</button>
+            <a href="{% url 'staff_list' %}" class="btn btn-danger">❌ Hủy</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Hiển thị preview và kiểm tra số lượng ảnh
+    document.getElementById('face_images').addEventListener('change', function (e) {
+        const files = e.target.files;
+        const form = document.querySelector('form');
+        const isEdit = form.getAttribute('data-is-edit') === 'true';
+
+        if (files.length > 0) {
+            if (files.length < 5) {
+                alert('⚠️ Vui lòng chọn ít nhất 5 ảnh!');
+                this.value = '';
+            } else if (files.length > 10) {
+                alert('⚠️ Chỉ được chọn tối đa 10 ảnh!');
+                this.value = '';
+            } else {
+                const action = isEdit ? 'thay thế' : 'chọn';
+                alert(`✅ Đã ${action} ${files.length} ảnh`);
+            }
+        }
+    });
+</script>
+{% endblock %}

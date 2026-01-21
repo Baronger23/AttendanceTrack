@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Ký Khuôn Mặt</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 3rem;
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        h1 { 
+            color: #2c3e50; 
+            margin-bottom: 1rem;
+            font-size: 2rem;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .user-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .user-info h3 {
+            color: #11998e;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Messages */
+        .messages { margin-bottom: 1.5rem; }
+        .alert { 
+            padding: 1rem; 
+            border-radius: 10px; 
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        
+        /* Camera Section */
+        .camera-section {
+            margin: 2rem 0;
+        }
+        
+        #video {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 15px;
+            border: 5px solid #11998e;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        #canvas { display: none; }
+        
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .btn-capture {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .btn-capture:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(17, 153, 142, 0.4);
+        }
+        
+        .btn-camera {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-camera:hover {
+            background: #229954;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        /* Success Display */
+        .success-display {
+            margin-top: 2rem;
+            padding: 2rem;
+            background: #d4edda;
+            border-radius: 15px;
+            border: 3px solid #27ae60;
+        }
+        
+        .success-display h2 {
+            color: #155724;
+            margin-bottom: 1rem;
+        }
+        
+        /* Loading */
+        .loading {
+            display: none;
+            margin-top: 1rem;
+            color: #11998e;
+            font-size: 1.2rem;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #11998e;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 1rem auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Đăng Ký Khuôn Mặt</h1>
+        <p class="subtitle">Chụp ảnh để đăng ký khuôn mặt của bạn vào hệ thống</p>
+        
+        <div class="user-info">
+            <h3>👤 {{ user.get_full_name|default:user.username }}</h3>
+            <p>Username: {{ user.username }}</p>
+            <p>Đã có face encoding: {% if user.face_encoding_text %}✅ Có{% else %}❌ Chưa{% endif %}</p>
+        </div>
+        
+        {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        {% if success %}
+        <div class="success-display">
+            <h2>✅ Đăng ký thành công!</h2>
+            <p>Bạn có thể sử dụng tính năng chấm công bằng khuôn mặt ngay bây giờ.</p>
+        </div>
+        
+        <div class="btn-group">
+            <a href="{% url 'kiosk_checkin' %}" class="btn btn-capture">📸 Đi chấm công</a>
+            <a href="{% url 'dashboard' %}" class="btn btn-secondary">🏠 Quay lại Dashboard</a>
+        </div>
+        {% else %}
+        <div class="camera-section">
+            <video id="video" autoplay></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" id="registerForm">
+            {% csrf_token %}
+            <input type="file" name="face_image" id="faceImage" accept="image/*" style="display: none;">
+            
+            <div class="btn-group">
+                <button type="button" class="btn btn-camera" id="startCamera">📷 Bật Camera</button>
+                <button type="button" class="btn btn-capture" id="captureBtn" style="display: none;">📸 Chụp & Đăng Ký</button>
+            </div>
+        </form>
+        
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p>Đang xử lý...</p>
+        </div>
+        {% endif %}
+        
+        <p style="margin-top: 2rem; color: #7f8c8d;">
+            <a href="{% url 'dashboard' %}" style="color: #11998e; text-decoration: none;">⬅️ Quay lại Dashboard</a>
+        </p>
+    </div>
+    
+    <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('captureBtn');
+    const startCameraBtn = document.getElementById('startCamera');
+    const form = document.getElementById('registerForm');
+    const loading = document.getElementById('loading');
+    let stream = null;
+    
+    if (startCameraBtn) {
+        // Bật camera
+        startCameraBtn.addEventListener('click', async function() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    } 
+                });
+                video.srcObject = stream;
+                startCameraBtn.style.display = 'none';
+                captureBtn.style.display = 'inline-block';
+            } catch (err) {
+                alert('❌ Không thể truy cập camera: ' + err.message);
+            }
+        });
+        
+        // Chụp ảnh và submit
+        captureBtn.addEventListener('click', function() {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0);
+            
+            canvas.toBlob(function(blob) {
+                const file = new File([blob], 'face.jpg', { type: 'image/jpeg' });
+                
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                document.getElementById('faceImage').files = dataTransfer.files;
+                
+                loading.style.display = 'block';
+                captureBtn.disabled = true;
+                
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+                
+                form.submit();
+            }, 'image/jpeg', 0.95);
+        });
+    }
+    </script>
+</body>
+</html>
