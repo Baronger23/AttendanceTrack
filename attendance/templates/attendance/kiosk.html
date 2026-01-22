@@ -1,120 +1,216 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chấm Công</title>
+    <title>Chấm Công - K2N3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 50%, #ff6b6b 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
             padding: 2rem;
+            position: relative;
+            overflow: hidden;
         }
-        
+
+        /* Animated background */
+        body::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveBackground 20s linear infinite;
+        }
+
+        @keyframes moveBackground {
+            0% {
+                transform: translate(0, 0);
+            }
+
+            100% {
+                transform: translate(50px, 50px);
+            }
+        }
+
+        /* Glassmorphism Container */
         .kiosk-container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 25px 70px rgba(0, 0, 0, 0.3);
             padding: 3rem;
-            max-width: 600px;
+            max-width: 650px;
             width: 100%;
             text-align: center;
+            position: relative;
+            z-index: 1;
         }
-        
-        h1 { 
-            color: #2c3e50; 
-            margin-bottom: 1rem;
-            font-size: 2.5rem;
-        }
-        
-        .subtitle {
-            color: #7f8c8d;
-            margin-bottom: 2rem;
-            font-size: 1.1rem;
-        }
-        
-        /* Messages */
-        .messages { margin-bottom: 1.5rem; }
-        .alert { 
-            padding: 1rem; 
-            border-radius: 10px; 
+
+        h1 {
+            color: white;
             margin-bottom: 0.5rem;
-            transition: opacity 0.5s ease-out;
-            font-size: 1.1rem;
+            font-size: 3rem;
+            font-weight: 700;
+            text-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
-        .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-        .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-        .alert-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
-        .alert.fade-out { opacity: 0; }
-        
-        /* Camera Section */
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 2rem;
+            font-size: 1.2rem;
+            font-weight: 400;
+        }
+
+        /* Camera Section with Neon Glow */
         .camera-section {
             margin: 2rem 0;
+            position: relative;
         }
-        
+
         #video {
             width: 100%;
             max-width: 500px;
-            border-radius: 15px;
-            border: 5px solid #667eea;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            border-radius: 20px;
+            border: 4px solid #00d4ff;
+            box-shadow:
+                0 0 20px rgba(0, 212, 255, 0.6),
+                0 0 40px rgba(0, 212, 255, 0.4),
+                0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: neonPulse 2s ease-in-out infinite;
         }
-        
-        #canvas { display: none; }
-        
-        /* Buttons */
-        .btn-group {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            margin-top: 2rem;
+
+        @keyframes neonPulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 20px rgba(0, 212, 255, 0.6), 0 0 40px rgba(0, 212, 255, 0.4), 0 10px 40px rgba(0, 0, 0, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 0 30px rgba(0, 212, 255, 0.8), 0 0 60px rgba(0, 212, 255, 0.6), 0 10px 40px rgba(0, 0, 0, 0.3);
+            }
         }
-        
-        .btn {
-            padding: 1rem 2.5rem;
+
+        #canvas {
+            display: none;
+        }
+
+        /* Modern Gradient Button */
+        .btn-checkin {
+            padding: 1.5rem 4rem;
             border: none;
             border-radius: 50px;
-            font-size: 1.2rem;
-            font-weight: bold;
+            font-size: 1.5rem;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ffa500 100%);
+            color: white;
+            box-shadow: 0 10px 30px rgba(255, 107, 107, 0.4);
+            margin-top: 2rem;
+            width: 100%;
+            max-width: 400px;
         }
-        
-        .btn-capture {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+        .btn-checkin:hover:not(:disabled) {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(255, 107, 107, 0.6);
+        }
+
+        .btn-checkin:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Result Message */
+        .result-message {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            border-radius: 15px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: none;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-success {
+            background: rgba(39, 174, 96, 0.2);
+            border: 2px solid #27ae60;
             color: white;
         }
-        
-        .btn-capture:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
-        }
-        
-        .btn-camera {
-            background: #27ae60;
+
+        .result-error {
+            background: rgba(231, 76, 60, 0.2);
+            border: 2px solid #e74c3c;
             color: white;
         }
-        
-        .btn-camera:hover {
-            background: #229954;
+
+        /* Loading Spinner */
+        .loading {
+            display: none;
+            margin-top: 1rem;
         }
-        
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 1rem auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
         /* Success Display */
         .success-display {
             margin-top: 2rem;
             padding: 2rem;
-            background: #d4edda;
-            border-radius: 15px;
+            background: rgba(39, 174, 96, 0.2);
+            border-radius: 20px;
             border: 3px solid #27ae60;
+            animation: slideIn 0.5s ease;
         }
-        
+
         .success-display img {
             width: 150px;
             height: 150px;
@@ -122,55 +218,43 @@
             object-fit: cover;
             border: 5px solid #27ae60;
             margin-bottom: 1rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
-        
+
         .success-display h2 {
-            color: #155724;
+            color: white;
             margin-bottom: 0.5rem;
+            font-size: 2rem;
         }
-        
+
         .success-display p {
-            color: #155724;
-            font-size: 1.1rem;
-        }
-        
-        /* Loading */
-        .loading {
-            display: none;
-            margin-top: 1rem;
-            color: #667eea;
+            color: rgba(255, 255, 255, 0.9);
             font-size: 1.2rem;
+            margin: 0.5rem 0;
         }
-        
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 1rem auto;
+
+        .footer-link {
+            margin-top: 2rem;
         }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .footer-link a {
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .footer-link a:hover {
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
         }
     </style>
 </head>
+
 <body>
     <div class="kiosk-container">
-        <h1>📸 Chấm Công</h1>
-        <p class="subtitle">Vui lòng chụp ảnh khuôn mặt để chấm công</p>
-        
-        {% if messages %}
-        <div class="messages">
-            {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        
+        <h1>📸 CHẤM CÔNG</h1>
+        <p class="subtitle">Hệ thống nhận diện khuôn mặt tự động</p>
+
         {% if success and user %}
         <div class="success-display">
             {% if user.avatar %}
@@ -179,105 +263,117 @@
             <h2>Chào {{ user.get_full_name }}!</h2>
             <p>🎯 Độ chính xác: {{ confidence }}%</p>
             <p>⏰ Ca làm việc: {{ user.work_shift.name|default:"Chưa phân ca" }}</p>
+            <p style="margin-top: 1rem; font-size: 1rem;">✅ Chấm công thành công!</p>
         </div>
         {% else %}
         <div class="camera-section">
-            <video id="video" autoplay></video>
+            <video id="video" autoplay playsinline></video>
             <canvas id="canvas"></canvas>
         </div>
-        
+
         <form method="post" enctype="multipart/form-data" id="checkinForm">
             {% csrf_token %}
             <input type="file" name="face_image" id="faceImage" accept="image/*" style="display: none;">
-            
-            <div class="btn-group">
-                <button type="button" class="btn btn-camera" id="startCamera">📷 Bật Camera</button>
-                <button type="button" class="btn btn-capture" id="captureBtn" style="display: none;">📸 Chụp & Chấm Công</button>
-            </div>
+
+            <button type="button" class="btn-checkin" id="checkinBtn">
+                📸 CHẤM CÔNG
+            </button>
         </form>
-        
+
         <div class="loading" id="loading">
             <div class="spinner"></div>
-            <p>Đang nhận diện...</p>
+            <p style="color: white; font-size: 1.1rem;">Đang nhận diện khuôn mặt...</p>
         </div>
+
+        <div class="result-message" id="resultMessage"></div>
         {% endif %}
-        
-        <p style="margin-top: 2rem; color: #7f8c8d;">
-            <a href="{% url 'login' %}" style="color: #667eea; text-decoration: none;">👤 Đăng nhập quản trị</a>
+
+        <p class="footer-link">
+            <a href="{% url 'login' %}">👤 Đăng nhập quản trị</a>
         </p>
     </div>
-    
+
     <script>
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const captureBtn = document.getElementById('captureBtn');
-    const startCameraBtn = document.getElementById('startCamera');
-    const form = document.getElementById('checkinForm');
-    const loading = document.getElementById('loading');
-    let stream = null;
-    
-    // Bật camera
-    startCameraBtn.addEventListener('click', async function() {
-        try {
-            stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { 
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    facingMode: 'user'
-                } 
-            });
-            video.srcObject = stream;
-            startCameraBtn.style.display = 'none';
-            captureBtn.style.display = 'inline-block';
-        } catch (err) {
-            alert('❌ Không thể truy cập camera: ' + err.message);
-        }
-    });
-    
-    // Chụp ảnh và submit
-    captureBtn.addEventListener('click', function() {
-        // Vẽ frame từ video lên canvas
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const context = canvas.getContext('2d');
-        context.drawImage(video, 0, 0);
-        
-        // Chuyển canvas thành blob
-        canvas.toBlob(function(blob) {
-            // Tạo file từ blob
-            const file = new File([blob], 'face.jpg', { type: 'image/jpeg' });
-            
-            // Gán vào input file
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            document.getElementById('faceImage').files = dataTransfer.files;
-            
-            // Hiển thị loading
-            loading.style.display = 'block';
-            captureBtn.disabled = true;
-            
-            // Dừng camera
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const checkinBtn = document.getElementById('checkinBtn');
+        const form = document.getElementById('checkinForm');
+        const loading = document.getElementById('loading');
+        const resultMessage = document.getElementById('resultMessage');
+        let stream = null;
+
+        // Auto-start camera on page load
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'user'
+                    }
+                });
+                video.srcObject = stream;
+            } catch (err) {
+                showResult('❌ Không thể truy cập camera: ' + err.message, 'error');
             }
-            
-            // Submit form
-            form.submit();
-        }, 'image/jpeg', 0.95);
-    });
-    
-    // Auto-hide messages
-    document.addEventListener('DOMContentLoaded', function() {
-        const alerts = document.querySelectorAll('.alert');
-        alerts.forEach(function(alert) {
-            setTimeout(function() {
-                alert.classList.add('fade-out');
-                setTimeout(function() {
-                    alert.remove();
-                }, 500);
+        }
+
+        // Start camera automatically
+        if (video) {
+            startCamera();
+        }
+
+        // Capture and submit
+        if (checkinBtn) {
+            checkinBtn.addEventListener('click', function () {
+                if (!stream) {
+                    showResult('❌ Camera chưa sẵn sàng!', 'error');
+                    return;
+                }
+
+                // Set button to processing state
+                checkinBtn.textContent = '⏳ ĐANG XỬ LÝ...';
+                checkinBtn.disabled = true;
+
+                // Capture frame
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0);
+
+                // Convert to blob and submit
+                canvas.toBlob(function (blob) {
+                    const file = new File([blob], 'face.jpg', { type: 'image/jpeg' });
+
+                    const dataTransfer = new DataTransfer();
+                    dataTransfer.items.add(file);
+                    document.getElementById('faceImage').files = dataTransfer.files;
+
+                    // Show loading
+                    loading.style.display = 'block';
+                    resultMessage.style.display = 'none';
+
+                    // Stop camera
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+
+                    // Submit form
+                    form.submit();
+                }, 'image/jpeg', 0.95);
+            });
+        }
+
+        function showResult(message, type) {
+            resultMessage.textContent = message;
+            resultMessage.className = 'result-message result-' + type;
+            resultMessage.style.display = 'block';
+
+            setTimeout(() => {
+                resultMessage.style.display = 'none';
             }, 5000);
-        });
-    });
+        }
     </script>
 </body>
+
 </html>

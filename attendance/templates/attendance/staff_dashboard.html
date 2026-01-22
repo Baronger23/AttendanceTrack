@@ -3,32 +3,386 @@
 {% block title %}Dashboard Nhân viên{% endblock %}
 
 {% block content %}
-<h2>Lịch Sử Chấm Công Của Tôi</h2>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<div class="card">
-    {% if my_logs %}
-    <table>
-        <thead>
-            <tr>
-                <th>Thời gian</th>
-                <th>Trạng thái</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in my_logs %}
-            <tr>
-                <td>{{ log.timestamp|date:"d/m/Y H:i:s" }}</td>
-                <td>
-                    {% if log.status == 'ON_TIME' %}✅ Đúng giờ
-                    {% elif log.status == 'LATE' %}⚠️ Đi muộn
-                    {% else %}❌ Vắng mặt{% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p>Chưa có lịch sử chấm công.</p>
-    {% endif %}
+<style>
+    .profile-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .profile-avatar {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        border: 5px solid white;
+        object-fit: cover;
+        margin-bottom: 1rem;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    }
+
+    .profile-name {
+        font-size: 1.8rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+
+    .profile-role {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        display: inline-block;
+        margin-bottom: 1rem;
+    }
+
+    .profile-info {
+        margin-top: 1.5rem;
+        text-align: left;
+    }
+
+    .profile-info-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+    }
+
+    .profile-info-item i {
+        width: 30px;
+        margin-right: 10px;
+        font-size: 1.2rem;
+    }
+
+    .stat-card {
+        border: none;
+        border-radius: 15px;
+        padding: 1.5rem;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .stat-card .stat-icon {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .stat-card .stat-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-card .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+    }
+
+    .card-blue {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+
+    .card-orange {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        color: white;
+    }
+
+    .card-red {
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        color: white;
+    }
+
+    .table-card {
+        border: none;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+    }
+
+    .table-card .card-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: bold;
+        padding: 1rem 1.5rem;
+    }
+</style>
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <!-- Left Column: Profile Card -->
+        <div class="col-lg-4 mb-4">
+            <div class="profile-card">
+                {% if user.avatar %}
+                <img src="{{ user.get_avatar_url }}" alt="{{ user.username }}" class="profile-avatar">
+                {% else %}
+                <img src="https://ui-avatars.com/api/?name={{ user.username }}&size=150&background=random"
+                    alt="{{ user.username }}" class="profile-avatar">
+                {% endif %}
+
+                <div class="profile-name">{{ user.get_full_name|default:user.username }}</div>
+                <div class="profile-role">
+                    <i class="fas fa-user"></i> {{ user.get_role_display }}
+                </div>
+
+                <div class="profile-info">
+                    <div class="profile-info-item">
+                        <i class="fas fa-id-card"></i>
+                        <div>
+                            <small>Mã nhân viên</small><br>
+                            <strong>{{ user.username }}</strong>
+                        </div>
+                    </div>
+                    <div class="profile-info-item">
+                        <i class="fas fa-clock"></i>
+                        <div>
+                            <small>Ca làm việc</small><br>
+                            <strong>{{ user.work_shift.name|default:"Chưa phân ca" }}</strong>
+                        </div>
+                    </div>
+                    {% if user.work_shift %}
+                    <div class="profile-info-item">
+                        <i class="fas fa-calendar-alt"></i>
+                        <div>
+                            <small>Giờ làm việc</small><br>
+                            <strong>{{ user.work_shift.start_time }} - {{ user.work_shift.end_time }}</strong>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Stats & Data -->
+        <div class="col-lg-8">
+            <!-- Stats Cards Row -->
+            <div class="row mb-4">
+                <div class="col-md-4 mb-3">
+                    <div class="stat-card card-blue">
+                        <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+                        <div class="stat-number">{{ days_worked }}</div>
+                        <div class="stat-label">Ngày đã làm</div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="stat-card card-orange">
+                        <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                        <div class="stat-number">{{ late_count }}</div>
+                        <div class="stat-label">Lần đi muộn</div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="stat-card card-red">
+                        <div class="stat-icon"><i class="fas fa-ban"></i></div>
+                        <div class="stat-number">{{ absent_count }}</div>
+                        <div class="stat-label">Lần vắng mặt</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Table -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <i class="fas fa-history"></i> Lịch sử chấm công gần đây
+                        </div>
+                        <div class="card-body p-0">
+                            {% if my_logs %}
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Thời gian</th>
+                                            <th>Trạng thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for log in my_logs %}
+                                        <tr>
+                                            <td>
+                                                <i class="fas fa-calendar-day text-muted me-2"></i>
+                                                {{ log.timestamp|date:"d/m/Y H:i:s" }}
+                                            </td>
+                                            <td>
+                                                {% if log.status == 'ON_TIME' %}
+                                                <span class="badge bg-success"><i class="fas fa-check"></i> Đúng
+                                                    giờ</span>
+                                                {% elif log.status == 'LATE' %}
+                                                <span class="badge bg-warning text-dark"><i
+                                                        class="fas fa-exclamation-triangle"></i> Đi muộn</span>
+                                                {% else %}
+                                                <span class="badge bg-danger"><i class="fas fa-times"></i> Vắng
+                                                    mặt</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="p-4 text-center text-muted">
+                                <i class="fas fa-inbox fa-3x mb-3"></i>
+                                <p>Chưa có lịch sử chấm công.</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Row -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-pie"></i> Tỉ lệ chấm công
+                        </div>
+                        <div class="card-body">
+                            <canvas id="attendanceChart" style="max-height: 300px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Late & Absent Details Row -->
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card table-card">
+                        <div class="card-header bg-warning text-dark">
+                            <i class="fas fa-exclamation-triangle"></i> Danh sách ngày đi muộn ({{ late_count }})
+                        </div>
+                        <div class="card-body p-0">
+                            {% if late_logs %}
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Ngày</th>
+                                            <th>Giờ chấm công</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for log in late_logs %}
+                                        <tr>
+                                            <td>
+                                                <i class="fas fa-calendar text-warning me-2"></i>
+                                                {{ log.timestamp|date:"d/m/Y" }}
+                                            </td>
+                                            <td>
+                                                <i class="fas fa-clock text-muted me-2"></i>
+                                                {{ log.timestamp|date:"H:i:s" }}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="p-4 text-center text-muted">
+                                <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                                <p class="mb-0">Chưa có lần đi muộn nào. Tuyệt vời! 🎉</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6 mb-4">
+                    <div class="card table-card">
+                        <div class="card-header bg-danger text-white">
+                            <i class="fas fa-ban"></i> Danh sách ngày vắng mặt ({{ absent_count }})
+                        </div>
+                        <div class="card-body p-0">
+                            {% if absent_logs %}
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                                <table class="table table-hover mb-0">
+                                    <thead class="table-light sticky-top">
+                                        <tr>
+                                            <th>Ngày</th>
+                                            <th>Giờ ghi nhận</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for log in absent_logs %}
+                                        <tr>
+                                            <td>
+                                                <i class="fas fa-calendar text-danger me-2"></i>
+                                                {{ log.timestamp|date:"d/m/Y" }}
+                                            </td>
+                                            <td>
+                                                <i class="fas fa-clock text-muted me-2"></i>
+                                                {{ log.timestamp|date:"H:i:s" }}
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            {% else %}
+                            <div class="p-4 text-center text-muted">
+                                <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                                <p class="mb-0">Chưa có ngày vắng mặt nào. Tuyệt vời! 🎉</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+{{ chart_data|json_script:"chart-data" }}
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const chartData = JSON.parse(document.getElementById('chart-data').textContent);
+
+        const ctx = document.getElementById('attendanceChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Đúng giờ', 'Đi muộn', 'Vắng mặt'],
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 {% endblock %}

@@ -113,10 +113,42 @@ def admin_dashboard(request):
 @login_required
 def staff_dashboard(request):
     """Dashboard cho Nhân viên"""
-    my_logs = AttendanceLog.objects.filter(user=request.user).order_by('-timestamp')[:20]
+    user = request.user
+    
+    # Lấy logs gần nhất
+    my_logs = AttendanceLog.objects.filter(user=user).order_by('-timestamp')[:20]
+    
+    # Tính toán thống kê
+    # 1. Tổng số ngày đã đi làm (unique dates)
+    days_worked = AttendanceLog.objects.filter(user=user).values('timestamp__date').distinct().count()
+    
+    # 2. Số lần đi muộn
+    late_count = AttendanceLog.objects.filter(user=user, status=AttendanceLog.Status.LATE).count()
+    
+    # 3. Số lần đúng giờ
+    on_time_count = AttendanceLog.objects.filter(user=user, status=AttendanceLog.Status.ON_TIME).count()
+    
+    # 4. Số ngày vắng (chỉ đếm record ABSENT thực tế trong DB)
+    absent_count = AttendanceLog.objects.filter(user=user, status=AttendanceLog.Status.ABSENT).count()
+    
+    # Dữ liệu cho biểu đồ tròn
+    chart_data = [on_time_count, late_count, absent_count]
+    
+    # Lấy danh sách ngày đi muộn
+    late_logs = AttendanceLog.objects.filter(user=user, status=AttendanceLog.Status.LATE).order_by('-timestamp')
+    
+    # Lấy danh sách ngày vắng
+    absent_logs = AttendanceLog.objects.filter(user=user, status=AttendanceLog.Status.ABSENT).order_by('-timestamp')
     
     context = {
         'my_logs': my_logs,
+        'days_worked': days_worked,
+        'late_count': late_count,
+        'on_time_count': on_time_count,
+        'absent_count': absent_count,
+        'chart_data': chart_data,
+        'late_logs': late_logs,
+        'absent_logs': absent_logs,
     }
     return render(request, 'attendance/staff_dashboard.html', context)
 
