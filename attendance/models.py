@@ -105,3 +105,29 @@ class AttendanceLog(models.Model):
 
     def __str__(self):
         return f"Check-in: {self.user.username} - {self.status}"
+
+
+# 4. BẢNG THÔNG BÁO CHO ADMIN
+class Notification(models.Model):
+    class Type(models.TextChoices):
+        WRONG_RECOGNITION = "WRONG_RECOGNITION", "Nhận diện sai"
+        NEW_STAFF = "NEW_STAFF", "Nhân viên mới"
+        SYSTEM = "SYSTEM", "Hệ thống"
+
+    type = models.CharField(max_length=50, choices=Type.choices, default=Type.SYSTEM)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    related_user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='notifications')
+    confidence = models.FloatField(null=True, blank=True)
+    is_read = models.BooleanField(default=False)
+    is_resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Thông báo'
+        verbose_name_plural = 'Thông báo'
+
+    def __str__(self):
+        return f"{self.get_type_display()}: {self.title}"

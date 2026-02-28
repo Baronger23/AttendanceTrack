@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from datetime import timedelta
-from .models import User, WorkShift, AttendanceLog
+from .models import User, WorkShift, AttendanceLog, Notification
 
 
 # ==================== AUTHENTICATION ====================
@@ -288,21 +288,26 @@ def staff_create(request):
                         img_array = np.frombuffer(image.read(), np.uint8)
                         img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
                         if img is not None:
-                            # Resize ảnh nhỏ hơn để xử lý nhanh hơn
-                            max_dimension = 800
+                            # Resize ảnh lớn hơn để giữ chi tiết
+                            max_dimension = 1000
                             height, width = img.shape[:2]
                             if max(height, width) > max_dimension:
                                 scale = max_dimension / max(height, width)
                                 img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                            
+                            # Histogram equalization để chuẩn hóa ánh sáng
+                            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+                            lab[:,:,0] = cv2.equalizeHist(lab[:,:,0])
+                            img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
                             
                             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                             
                             # Phát hiện khuôn mặt với HOG (nhanh hơn CNN)
                             face_locations = face_recognition.face_locations(rgb_img, number_of_times_to_upsample=1, model="hog")
                             
-                            # Tìm và mã hóa khuôn mặt
+                            # Tìm và mã hóa khuôn mặt với num_jitters=5 cho độ chính xác cao
                             if face_locations:
-                                face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
+                                face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=5)
                                 if face_encodings:
                                     all_encodings.append(face_encodings[0].tolist())
                     
@@ -423,20 +428,26 @@ def staff_edit(request, pk):
                     img_array = np.frombuffer(image.read(), np.uint8)
                     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
                     if img is not None:
-                        # Resize ảnh nhỏ hơn để xử lý nhanh hơn
-                        max_dimension = 800
+                        # Resize ảnh lớn hơn để giữ chi tiết
+                        max_dimension = 1000
                         height, width = img.shape[:2]
                         if max(height, width) > max_dimension:
                             scale = max_dimension / max(height, width)
                             img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+                        
+                        # Histogram equalization để chuẩn hóa ánh sáng
+                        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+                        lab[:,:,0] = cv2.equalizeHist(lab[:,:,0])
+                        img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
                         
                         rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
                         
                         # Phát hiện khuôn mặt với HOG
                         face_locations = face_recognition.face_locations(rgb_img, number_of_times_to_upsample=1, model="hog")
                         
+                        # Mã hóa khuôn mặt với num_jitters=5 cho độ chính xác cao
                         if face_locations:
-                            face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
+                            face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=5)
                             if face_encodings:
                                 all_encodings.append(face_encodings[0].tolist())
                 
@@ -630,6 +641,11 @@ def kiosk_checkin(request):
                 messages.error(request, '❌ Không thể đọc ảnh! Vui lòng thử lại.')
                 return render(request, 'attendance/kiosk.html')
             
+            # Histogram equalization để chuẩn hóa ánh sáng (giống lúc đăng ký)
+            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+            lab[:,:,0] = cv2.equalizeHist(lab[:,:,0])
+            img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+            
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
             # Tìm khuôn mặt trong ảnh - thử nhiều phương pháp
@@ -658,8 +674,9 @@ def kiosk_checkin(request):
                 messages.error(request, '❌ Không phát hiện khuôn mặt! Vui lòng đảm bảo khuôn mặt rõ ràng, đủ sáng và chụp lại.')
                 return render(request, 'attendance/kiosk.html')
             
-            # Mã hóa khuôn mặt
-            face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
+            # Mã hóa khuôn mặt với num_jitters=5 để tăng độ chính xác
+            # num_jitters: re-sample và lấy trung bình, cao hơn = chính xác hơn nhưng chậm hơn
+            face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=5)
             
             if not face_encodings:
                 messages.error(request, '❌ Không thể mã hóa khuôn mặt! Vui lòng thử lại.')
@@ -671,7 +688,9 @@ def kiosk_checkin(request):
             staff_members = User.objects.filter(role=User.Role.STAFF).exclude(face_encoding_text__isnull=True)
             
             best_match = None
-            best_distance = 0.6  # Ngưỡng mặc định (càng nhỏ càng nghiêm)
+            best_distance = 0.50  # Ngưỡng cho phép > 60% confidence
+            # Khoảng cách càng nhỏ = match càng chính xác
+            # 0.40 = ~75%, 0.45 = ~70%, 0.50 = ~60%
             
             for staff in staff_members:
                 known_encoding = staff.get_encoding()
@@ -683,39 +702,147 @@ def kiosk_checkin(request):
                         best_distance = distance
                         best_match = staff
             
-            if best_match:
-                # Tìm thấy nhân viên - Tạo log chấm công
-                today = timezone.now().date()
-                
-                # Kiểm tra đã chấm công hôm nay chưa
-                existing_log = AttendanceLog.objects.filter(
-                    user=best_match,
-                    timestamp__date=today
-                ).first()
-                
-                if existing_log:
-                    messages.warning(request, f'⚠️ {best_match.get_full_name()} đã chấm công hôm nay lúc {existing_log.timestamp.strftime("%H:%M")}!')
-                else:
-                    # Tạo log mới
-                    log = AttendanceLog.objects.create(user=best_match)
-                    
-                    messages.success(request, f'✅ Chấm công thành công! Xin chào {best_match.get_full_name()} - {log.get_status_display()}')
-                
-                context = {
-                    'success': True,
-                    'user': best_match,
-                    'confidence': round((1 - best_distance) * 100, 2)
-                }
-                return render(request, 'attendance/kiosk.html', context)
-            else:
-                messages.error(request, '❌ Không nhận diện được! Vui lòng liên hệ quản trị viên.')
+            # Kiểm tra độ chính xác tối thiểu
+            # Nếu best_match is None, nghĩa là không có ai match đủ tốt (distance > 0.38)
+            if best_match is None:
+                messages.error(request, '❌ Không nhận diện được! Khuôn mặt không khớp với bất kỳ nhân viên nào trong hệ thống.')
                 return render(request, 'attendance/kiosk.html')
+            
+            # Tìm thấy nhân viên - Tạo log chấm công
+            today = timezone.now().date()
+            
+            # Kiểm tra đã chấm công hôm nay chưa
+            existing_log = AttendanceLog.objects.filter(
+                user=best_match,
+                timestamp__date=today
+            ).first()
+            
+            if existing_log:
+                messages.warning(request, f'⚠️ {best_match.get_full_name()} đã chấm công hôm nay lúc {existing_log.timestamp.strftime("%H:%M")}!')
+            else:
+                # Tạo log mới
+                log = AttendanceLog.objects.create(user=best_match)
+                
+                messages.success(request, f'✅ Chấm công thành công! Xin chào {best_match.get_full_name()} - {log.get_status_display()}')
+            
+            # Tính độ chính xác đơn giản và trực quan
+            # Dùng công thức gốc: (1 - distance) * 100
+            # Với threshold 0.50, confidence tối thiểu là 50%
+            confidence = round((1 - best_distance) * 100, 1)
+            
+            context = {
+                'success': True,
+                'user': best_match,
+                'confidence': confidence
+            }
+            return render(request, 'attendance/kiosk.html', context)
                 
         except Exception as e:
             messages.error(request, f'❌ Lỗi: {str(e)}')
             return render(request, 'attendance/kiosk.html')
     
     return render(request, 'attendance/kiosk.html')
+
+
+# ==================== BÁO CÁO NHẬN DIỆN SAI ====================
+
+def report_error(request):
+    """Xử lý báo cáo khi nhận diện sai người"""
+    if request.method == 'POST':
+        wrong_user_id = request.POST.get('wrong_user_id')
+        confidence = request.POST.get('confidence')
+        # Xử lý dấu phẩy thập phân (định dạng Việt Nam: 73,7 → 73.7)
+        if confidence:
+            confidence = confidence.replace(',', '.')
+        description = request.POST.get('description', '')
+        
+        try:
+            wrong_user = User.objects.get(id=wrong_user_id)
+            today = timezone.now().date()
+            
+            # Xóa log chấm công sai (nếu có)
+            deleted_count, _ = AttendanceLog.objects.filter(
+                user=wrong_user,
+                timestamp__date=today
+            ).delete()
+            
+            # Tạo thông báo cho admin
+            Notification.objects.create(
+                type=Notification.Type.WRONG_RECOGNITION,
+                title=f"Báo cáo nhận diện sai - {wrong_user.get_full_name()}",
+                message=f"""Có báo cáo nhận diện sai người.
+- Người bị nhận nhầm: {wrong_user.get_full_name()} ({wrong_user.username})
+- Độ chính xác: {confidence}%
+- Mô tả từ người dùng: {description if description else 'Không có mô tả'}
+- Đã tự động xóa {deleted_count} log chấm công sai""",
+                related_user=wrong_user,
+                confidence=float(confidence) if confidence else None,
+            )
+            
+            messages.success(request, f'✅ Đã gửi báo cáo thành công! Log chấm công sai đã được xóa. Quản trị viên sẽ xem xét.')
+            
+        except User.DoesNotExist:
+            messages.error(request, '❌ Không tìm thấy thông tin người dùng.')
+        except Exception as e:
+            messages.error(request, f'❌ Lỗi: {str(e)}')
+    
+    return redirect('kiosk')
+
+
+# ==================== QUẢN LÝ THÔNG BÁO ====================
+
+@login_required
+def notification_list(request):
+    """Danh sách tất cả thông báo"""
+    if request.user.role != User.Role.ADMIN:
+        return redirect('staff_dashboard')
+    
+    notifications = Notification.objects.all()
+    
+    # Đánh dấu tất cả là đã đọc
+    if request.GET.get('mark_all_read'):
+        Notification.objects.filter(is_read=False).update(is_read=True)
+        messages.success(request, '✅ Đã đánh dấu tất cả là đã đọc')
+        return redirect('notification_list')
+    
+    context = {
+        'page_title': 'Thông báo',
+        'all_notifications': notifications,
+    }
+    return render(request, 'attendance/notification_list.html', context)
+
+
+@login_required
+def notification_detail(request, pk):
+    """Xem chi tiết và xử lý thông báo"""
+    if request.user.role != User.Role.ADMIN:
+        return redirect('staff_dashboard')
+    
+    notification = get_object_or_404(Notification, pk=pk)
+    
+    # Đánh dấu là đã đọc
+    if not notification.is_read:
+        notification.is_read = True
+        notification.save()
+    
+    # Xử lý resolve
+    if request.method == 'POST':
+        if 'resolve' in request.POST:
+            notification.is_resolved = True
+            notification.resolved_at = timezone.now()
+            notification.save()
+            messages.success(request, '✅ Đã xử lý thông báo!')
+            return redirect('notification_list')
+        elif 'delete' in request.POST:
+            notification.delete()
+            messages.success(request, '✅ Đã xóa thông báo!')
+            return redirect('notification_list')
+    
+    context = {
+        'page_title': f'Thông báo: {notification.title}',
+        'notification': notification,
+    }
+    return render(request, 'attendance/notification_detail.html', context)
 
 
 # ==================== ĐĂNG KÝ KHUÔN MẶT NHANH ====================
@@ -759,7 +886,7 @@ def face_register(request):
                 return render(request, 'attendance/face_register.html')
             
             # Mã hóa khuôn mặt
-            face_encodings = face_recognition.face_encodings(rgb_img, face_locations)
+            face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=2)
             
             if not face_encodings:
                 messages.error(request, '❌ Không thể mã hóa khuôn mặt!')

@@ -1,26 +1,236 @@
-{% extends 'attendance/base.html' %}
+<!DOCTYPE html>
+<html lang="vi">
 
-{% block title %}Đăng nhập - Hệ thống Chấm công{% endblock %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập - K2N3 Chấm công</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-{% block content %}
-<div style="max-width: 400px; margin: 5rem auto;">
-    <div class="card">
-        <h2 style="text-align: center; margin-bottom: 2rem;">🔐 Đăng nhập</h2>
-        
-        <form method="post">
-            {% csrf_token %}
-            <div class="form-group">
-                <label for="username">Tên đăng nhập</label>
-                <input type="text" id="username" name="username" required autofocus>
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1e2a38 0%, #2c3e50 50%, #1e2a38 100%);
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Dotted background pattern */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        /* Glow blobs */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.18;
+        }
+
+        .blob-1 {
+            width: 400px;
+            height: 400px;
+            background: #4e73df;
+            top: -100px;
+            right: -80px;
+        }
+
+        .blob-2 {
+            width: 300px;
+            height: 300px;
+            background: #36b9cc;
+            bottom: -80px;
+            left: -60px;
+        }
+
+        .login-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            max-width: 400px;
+            padding: 1.5rem;
+        }
+
+        .login-card {
+            background: rgba(255, 255, 255, 0.97);
+            border-radius: 20px;
+            padding: 2.25rem 2.25rem;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-logo {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(135deg, #4e73df, #36b9cc);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+            margin: 0 auto 1.25rem;
+        }
+
+        .login-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #1e2a38;
+            text-align: center;
+            margin-bottom: 0.3rem;
+        }
+
+        .login-sub {
+            font-size: 0.82rem;
+            color: #718096;
+            text-align: center;
+            margin-bottom: 1.75rem;
+        }
+
+        .form-label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin-bottom: 0.4rem;
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 1.1rem;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #a0aec0;
+            font-size: 0.82rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.6rem 0.9rem 0.6rem 2.1rem;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+            background: #f8fafc;
+        }
+
+        .form-input:focus {
+            border-color: #4e73df;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(78, 115, 223, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 0.7rem;
+            background: linear-gradient(135deg, #4e73df, #3755c1);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-top: 0.5rem;
+            letter-spacing: 0.3px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(78, 115, 223, 0.35);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .alert-error {
+            background: #fff5f5;
+            border: 1px solid #fed7d7;
+            color: #c53030;
+            border-radius: 10px;
+            padding: 0.7rem 1rem;
+            font-size: 0.82rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="login-wrapper">
+        <div class="login-card">
+            <div class="login-logo">
+                <i class="fas fa-fingerprint"></i>
             </div>
-            
-            <div class="form-group">
-                <label for="password">Mật khẩu</label>
-                <input type="password" id="password" name="password" required>
+            <div class="login-title">K2N3 Chấm công</div>
+            <div class="login-sub">Đăng nhập để truy cập hệ thống</div>
+
+            {% if messages %}
+            {% for message in messages %}
+            <div class="alert-error">
+                <i class="fas fa-exclamation-circle"></i>
+                {{ message }}
             </div>
-            
-            <button type="submit" class="btn btn-primary" style="width: 100%;">Đăng nhập</button>
-        </form>
+            {% endfor %}
+            {% endif %}
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label" for="username">Tên đăng nhập</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-user input-icon"></i>
+                        <input type="text" id="username" name="username" class="form-input"
+                            placeholder="Nhập tên đăng nhập..." required autofocus>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Mật khẩu</label>
+                    <div class="input-wrap">
+                        <i class="fas fa-lock input-icon"></i>
+                        <input type="password" id="password" name="password" class="form-input"
+                            placeholder="Nhập mật khẩu..." required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login">
+                    <i class="fas fa-sign-in-alt me-2"></i>Đăng nhập
+                </button>
+            </form>
+        </div>
     </div>
-</div>
-{% endblock %}
+</body>
+
+</html>

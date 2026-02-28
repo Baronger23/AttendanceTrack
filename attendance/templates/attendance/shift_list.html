@@ -1,45 +1,82 @@
 {% extends 'attendance/admin_base.html' %}
 {% block page_title %}Quản lý Ca làm việc{% endblock %}
-
 {% block title %}Danh sách Ca làm việc{% endblock %}
 
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-    <h2>Danh Sách Ca Làm Việc</h2>
-    <a href="{% url 'shift_create' %}" class="btn btn-success">➕ Thêm ca làm việc</a>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-0" style="color:var(--text-main);">Ca Làm Việc</h4>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">Quản lý các ca làm việc trong hệ thống</p>
+    </div>
+    <a href="{% url 'shift_create' %}" class="btn btn-primary d-flex align-items-center gap-2">
+        <i class="fas fa-plus fa-sm"></i>
+        <span>Thêm ca làm việc</span>
+    </a>
 </div>
 
 <div class="card">
     {% if shifts %}
-    <table>
-        <thead>
-            <tr>
-                <th>Tên ca</th>
-                <th>Giờ bắt đầu</th>
-                <th>Giờ kết thúc</th>
-                <th>Cho phép trễ (phút)</th>
-                <th>Thao tác</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for shift in shifts %}
-            <tr>
-                <td>{{ shift.name }}</td>
-                <td>{{ shift.start_time }}</td>
-                <td>{{ shift.end_time }}</td>
-                <td>{{ shift.late_grace_period }}</td>
-                <td>
-                    <a href="{% url 'shift_edit' shift.pk %}" class="btn btn-primary"
-                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Sửa</a>
-                    <a href="{% url 'shift_delete' shift.pk %}" class="btn btn-danger"
-                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Xóa</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="table table-modern mb-0">
+            <thead>
+                <tr>
+                    <th>Tên ca</th>
+                    <th>Giờ bắt đầu</th>
+                    <th>Giờ kết thúc</th>
+                    <th>Cho phép trễ (phút)</th>
+                    <th class="text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for shift in shifts %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <div style="width:8px; height:8px; border-radius:50%; background:var(--primary);"></div>
+                            <span style="font-weight:500;">{{ shift.name }}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge-status bg-success bg-opacity-10 text-success">
+                            <i class="fas fa-play fa-xs me-1"></i>{{ shift.start_time }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge-status bg-danger bg-opacity-10 text-danger">
+                            <i class="fas fa-stop fa-xs me-1"></i>{{ shift.end_time }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge-status bg-warning bg-opacity-15" style="color:#b45309;">
+                            <i class="fas fa-clock fa-xs me-1"></i>{{ shift.late_grace_period }} phút
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center gap-1">
+                            <a href="{% url 'shift_edit' shift.pk %}" class="btn btn-sm btn-outline-primary"
+                                title="Sửa">
+                                <i class="fas fa-edit fa-xs"></i>
+                            </a>
+                            <a href="{% url 'shift_delete' shift.pk %}" class="btn btn-sm btn-outline-danger"
+                                title="Xóa">
+                                <i class="fas fa-trash fa-xs"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p>Chưa có ca làm việc nào.</p>
+    <div class="text-center py-5">
+        <i class="fas fa-calendar-times"
+            style="font-size:2.5rem; color:#cbd5e0; margin-bottom:1rem; display:block;"></i>
+        <p style="color:var(--text-muted); font-size:0.9rem;">Chưa có ca làm việc nào trong hệ thống.</p>
+        <a href="{% url 'shift_create' %}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus fa-xs me-1"></i>Thêm ngay
+        </a>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

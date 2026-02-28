@@ -17,20 +17,37 @@
 
     <style>
         :root {
-            --sidebar-width: 250px;
-            --topbar-height: 60px;
-            --primary-color: #4e73df;
-            --sidebar-bg: #2c3e50;
-            --sidebar-active: #34495e;
+            --sidebar-width: 240px;
+            --topbar-height: 62px;
+            --primary: #4e73df;
+            --primary-dark: #3755c1;
+            --sidebar-bg: #1e2a38;
+            --sidebar-text: rgba(255, 255, 255, 0.72);
+            --sidebar-active-bg: rgba(78, 115, 223, 0.18);
+            --sidebar-active-border: #4e73df;
+            --bg-page: #f0f2f8;
+            --card-bg: #ffffff;
+            --text-main: #2d3748;
+            --text-muted: #718096;
+            --border-color: #e2e8f0;
+            --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.06);
+            --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f8f9fc;
+            background: var(--bg-page);
+            color: var(--text-main);
             overflow-x: hidden;
+            font-size: 0.9rem;
         }
 
-        /* Sidebar */
+        /* ─── SIDEBAR ─── */
         .sidebar {
             width: var(--sidebar-width);
             height: 100vh;
@@ -38,65 +55,116 @@
             top: 0;
             left: 0;
             background: var(--sidebar-bg);
-            color: white;
-            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
             z-index: 1000;
+            transition: transform 0.3s ease;
         }
 
         .sidebar-brand {
             height: var(--topbar-height);
             display: flex;
             align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            font-weight: bold;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            gap: 10px;
+            padding: 0 1.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            flex-shrink: 0;
         }
 
-        .sidebar-brand i {
-            margin-right: 10px;
-            color: #36b9cc;
+        .sidebar-brand .brand-icon {
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, #4e73df, #36b9cc);
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 0.85rem;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand .brand-name {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: white;
+            letter-spacing: 0.3px;
+        }
+
+        .sidebar-brand .brand-sub {
+            font-size: 0.65rem;
+            color: rgba(255, 255, 255, 0.4);
+            font-weight: 400;
+        }
+
+        .sidebar-section-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.3);
+            padding: 1.2rem 1.25rem 0.4rem;
         }
 
         .sidebar-menu {
-            padding: 1rem 0;
+            padding: 0.5rem 0;
             list-style: none;
+            margin: 0;
+            overflow-y: auto;
+            flex: 1;
         }
 
         .nav-item .nav-link {
-            color: rgba(255, 255, 255, 0.8);
-            padding: 1rem 1.5rem;
+            color: var(--sidebar-text);
+            padding: 0.65rem 1.25rem;
             display: flex;
             align-items: center;
+            gap: 10px;
             text-decoration: none;
-            transition: all 0.2s;
-            border-left: 4px solid transparent;
-        }
-
-        .nav-item .nav-link:hover,
-        .nav-item .nav-link.active {
-            color: white;
-            background: rgba(255, 255, 255, 0.05);
-            border-left-color: var(--primary-color);
+            transition: all 0.18s ease;
+            border-left: 3px solid transparent;
+            border-radius: 0;
+            font-size: 0.875rem;
+            font-weight: 400;
         }
 
         .nav-item .nav-link i {
-            width: 20px;
-            margin-right: 10px;
+            width: 18px;
             text-align: center;
+            font-size: 0.8rem;
+            opacity: 0.8;
         }
 
-        /* Main Content */
+        .nav-item .nav-link:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.06);
+            border-left-color: rgba(78, 115, 223, 0.5);
+        }
+
+        .nav-item .nav-link.active {
+            color: white;
+            background: var(--sidebar-active-bg);
+            border-left-color: var(--sidebar-active-border);
+            font-weight: 500;
+        }
+
+        .nav-item .nav-link.active i {
+            opacity: 1;
+        }
+
+        /* ─── MAIN CONTENT ─── */
         .main-content {
             margin-left: var(--sidebar-width);
-            transition: all 0.3s;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* Topbar */
+        /* ─── TOPBAR ─── */
         .topbar {
             height: var(--topbar-height);
-            background: white;
-            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -104,72 +172,308 @@
             position: sticky;
             top: 0;
             z-index: 999;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .topbar-left h5 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin: 0;
         }
 
         .topbar-right {
             display: flex;
             align-items: center;
-            gap: 1.5rem;
+            gap: 0.5rem;
         }
 
-        .notification-bell {
-            position: relative;
-            color: #b7b9cc;
-            cursor: pointer;
-        }
-
-        .notification-bell .badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            font-size: 0.6rem;
-        }
-
-        .user-profile {
+        .topbar-btn {
+            width: 36px;
+            height: 36px;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            justify-content: center;
+            border-radius: 9px;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            background: transparent;
             cursor: pointer;
+            transition: all 0.18s;
+            text-decoration: none;
+            position: relative;
         }
 
-        .user-avatar {
-            width: 35px;
-            height: 35px;
+        .topbar-btn:hover {
+            background: var(--bg-page);
+            color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .topbar-btn .badge-dot {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e53e3e;
+            border: 2px solid white;
+        }
+
+        .user-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 10px 4px 4px;
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            transition: all 0.18s;
+            background: transparent;
+        }
+
+        .user-chip:hover {
+            background: var(--bg-page);
+            border-color: var(--primary);
+        }
+
+        .user-chip img {
+            width: 28px;
+            height: 28px;
             border-radius: 50%;
             object-fit: cover;
         }
 
-        /* Page Content */
-        .page-content {
-            padding: 1.5rem;
+        .user-chip .user-name {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-main);
         }
 
-        /* Responsive */
+        /* ─── PAGE CONTENT ─── */
+        .page-content {
+            padding: 1.5rem;
+            flex: 1;
+        }
+
+        /* ─── CARD ─── */
+        .card {
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-sm);
+            border-radius: var(--radius);
+            background: var(--card-bg);
+        }
+
+        .card:hover {
+            box-shadow: var(--shadow-md);
+            transition: box-shadow 0.2s;
+        }
+
+        .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 1.25rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text-main);
+            border-radius: var(--radius) var(--radius) 0 0 !important;
+        }
+
+        /* ─── TABLE ─── */
+        .table-modern thead th {
+            background: var(--bg-page);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+        }
+
+        .table-modern tbody td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            vertical-align: middle;
+            color: var(--text-main);
+            font-size: 0.875rem;
+        }
+
+        .table-modern tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table-modern tbody tr:hover td {
+            background: #f7f9fc;
+        }
+
+        /* ─── BADGE ─── */
+        .badge-status {
+            padding: 0.3em 0.75em;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+
+        /* ─── BUTTONS ─── */
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            transition: all 0.18s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            border-color: var(--primary-dark);
+        }
+
+        .btn-sm {
+            padding: 0.3rem 0.7rem;
+            font-size: 0.8rem;
+            border-radius: 6px;
+        }
+
+        /* ─── ALERTS ─── */
+        .alert {
+            border-radius: var(--radius);
+            border: none;
+            font-size: 0.875rem;
+        }
+
+        /* ─── STAT CARD ─── */
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: box-shadow 0.2s;
+        }
+
+        .stat-card:hover {
+            box-shadow: var(--shadow-md);
+        }
+
+        .stat-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .stat-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1;
+        }
+
+        /* ─── AVATAR ─── */
+        .avatar-sm {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+        }
+
+        /* ─── INPUTS ─── */
+        .form-control,
+        .form-select {
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            font-size: 0.875rem;
+            padding: 0.55rem 0.9rem;
+            transition: border-color 0.18s, box-shadow 0.18s;
+        }
+
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(78, 115, 223, 0.12);
+        }
+
+        /* ─── DROPDOWN ─── */
+        .dropdown-menu {
+            border: 1px solid var(--border-color);
+            box-shadow: var(--shadow-md);
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+        }
+
+        .dropdown-item {
+            padding: 0.5rem 1rem;
+        }
+
+        /* ─── NOTIFICATION ─── */
+        .notif-item {
+            padding: 0.6rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+            text-decoration: none;
+            color: var(--text-main);
+            transition: background 0.15s;
+        }
+
+        .notif-item:hover {
+            background: var(--bg-page);
+        }
+
+        .notif-item.unread {
+            background: #f0f5ff;
+        }
+
+        .notif-item .notif-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        /* ─── RESPONSIVE ─── */
         @media (max-width: 768px) {
             .sidebar {
-                margin-left: calc(-1 * var(--sidebar-width));
+                transform: translateX(-100%);
             }
 
             .sidebar.show {
-                margin-left: 0;
+                transform: translateX(0);
             }
 
             .main-content {
                 margin-left: 0;
             }
         }
-
-        /* Utilities */
-        .text-gray-800 {
-            color: #5a5c69;
-        }
-
-        .card {
-            border: none;
-            box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15);
-            border-radius: 0.5rem;
-        }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 
 <body>
@@ -177,39 +481,47 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-brand">
-            <i class="fas fa-camera"></i> K2N3 Admin
+            <div class="brand-icon"><i class="fas fa-fingerprint"></i></div>
+            <div>
+                <div class="brand-name">K2N3 System</div>
+                <div class="brand-sub">Quản lý chấm công</div>
+            </div>
         </div>
-        <ul class="sidebar-menu p-0">
+
+        <ul class="sidebar-menu">
+            <div class="sidebar-section-label">Tổng quan</div>
             <li class="nav-item">
                 <a href="{% url 'admin_dashboard' %}"
                     class="nav-link {% if request.resolver_match.url_name == 'admin_dashboard' %}active{% endif %}">
-                    <i class="fas fa-fw fa-tachometer-alt"></i>
+                    <i class="fas fa-chart-pie"></i>
                     <span>Dashboard</span>
                 </a>
             </li>
-            <div class="sidebar-heading text-uppercase text-secondary fs-6 px-3 mt-3 mb-1">Quản lý</div>
+
+            <div class="sidebar-section-label">Quản lý</div>
             <li class="nav-item">
                 <a href="{% url 'staff_list' %}" class="nav-link {% if 'staff' in request.path %}active{% endif %}">
-                    <i class="fas fa-fw fa-users"></i>
+                    <i class="fas fa-users"></i>
                     <span>Nhân viên</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="{% url 'shift_list' %}" class="nav-link {% if 'shift' in request.path %}active{% endif %}">
-                    <i class="fas fa-fw fa-clock"></i>
+                    <i class="fas fa-calendar-alt"></i>
                     <span>Ca làm việc</span>
                 </a>
             </li>
-            <div class="sidebar-heading text-uppercase text-secondary fs-6 px-3 mt-3 mb-1">Báo cáo</div>
+
+            <div class="sidebar-section-label">Báo cáo</div>
             <li class="nav-item">
                 <a href="#" class="nav-link">
-                    <i class="fas fa-fw fa-chart-area"></i>
+                    <i class="fas fa-history"></i>
                     <span>Lịch sử chấm công</span>
                 </a>
             </li>
             <li class="nav-item">
                 <a href="#" class="nav-link">
-                    <i class="fas fa-fw fa-file-alt"></i>
+                    <i class="fas fa-file-alt"></i>
                     <span>Báo cáo tháng</span>
                 </a>
             </li>
@@ -220,42 +532,94 @@
     <div class="main-content">
         <!-- Topbar -->
         <nav class="topbar">
-            <button class="btn btn-link d-md-none rounded-circle mr-3" id="sidebarToggle">
-                <i class="fa fa-bars"></i>
-            </button>
-
-            <h5 class="m-0 text-gray-800 d-none d-sm-block">{% block page_title %}Dashboard{% endblock %}</h5>
+            <div class="topbar-left d-flex align-items-center gap-3">
+                <button class="topbar-btn d-md-none" id="sidebarToggle" style="border-radius:8px;">
+                    <i class="fa fa-bars fa-sm"></i>
+                </button>
+                <h5>{% block page_title %}Dashboard{% endblock %}</h5>
+            </div>
 
             <div class="topbar-right">
                 <!-- Notifications -->
-                <div class="notification-bell">
-                    <i class="fas fa-bell fa-fw"></i>
-                    <span class="badge bg-danger rounded-pill">3+</span>
+                <div class="dropdown">
+                    <div class="topbar-btn dropdown-toggle" data-bs-toggle="dropdown" role="button" id="notifDropdown">
+                        <i class="fas fa-bell fa-sm"></i>
+                        {% if unread_notifications_count and unread_notifications_count > 0 %}
+                        <span class="badge-dot"></span>
+                        {% endif %}
+                    </div>
+                    <div class="dropdown-menu dropdown-menu-end p-0"
+                        style="width:340px; max-height:400px; overflow-y:auto;">
+                        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                            <span style="font-weight:600; font-size:0.85rem;">Thông báo</span>
+                            {% if unread_notifications_count > 0 %}
+                            <span class="badge bg-primary rounded-pill" style="font-size:0.72rem;">{{
+                                unread_notifications_count }} mới</span>
+                            {% endif %}
+                        </div>
+                        {% if notifications %}
+                        {% for notif in notifications %}
+                        <a class="notif-item {% if not notif.is_read %}unread{% endif %}"
+                            href="{% url 'notification_detail' notif.id %}">
+                            <div
+                                class="notif-icon {% if notif.type == 'WRONG_RECOGNITION' %}bg-warning bg-opacity-15 text-warning{% else %}bg-primary bg-opacity-10 text-primary{% endif %}">
+                                {% if notif.type == 'WRONG_RECOGNITION' %}
+                                <i class="fas fa-exclamation-triangle"></i>
+                                {% else %}
+                                <i class="fas fa-info-circle"></i>
+                                {% endif %}
+                            </div>
+                            <div style="flex:1; min-width:0;">
+                                <div
+                                    style="font-weight:500; font-size:0.82rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                    {{ notif.title|truncatechars:38 }}</div>
+                                <div style="font-size:0.72rem; color:var(--text-muted);">{{ notif.created_at|timesince
+                                    }} trước</div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                        <a href="{% url 'notification_list' %}" class="d-block text-center py-2"
+                            style="font-size:0.8rem; color:var(--primary); text-decoration:none; border-top:1px solid var(--border-color);">Xem
+                            tất cả →</a>
+                        {% else %}
+                        <div class="text-center py-4" style="color:var(--text-muted);">
+                            <i class="fas fa-check-circle fa-lg mb-2 d-block" style="color:#48bb78;"></i>
+                            <span style="font-size:0.82rem;">Không có thông báo mới</span>
+                        </div>
+                        {% endif %}
+                    </div>
                 </div>
 
-                <div class="vr mx-2"></div>
+                <div style="width:1px; height:22px; background:var(--border-color);"></div>
 
                 <!-- User Profile -->
                 <div class="dropdown">
-                    <div class="user-profile dropdown-toggle" data-bs-toggle="dropdown">
-                        <span class="mr-2 d-none d-lg-inline text-gray-600 small">{{ user.get_full_name|default:user.username }}</span>
+                    <div class="user-chip dropdown-toggle" data-bs-toggle="dropdown">
                         {% if user.avatar %}
-                        <img class="user-avatar" src="{{ user.get_avatar_url }}">
+                        <img src="{{ user.get_avatar_url }}" alt="{{ user.username }}">
                         {% else %}
-                        <img class="user-avatar"
-                            src="https://ui-avatars.com/api/?name={{ user.username }}&background=random">
+                        <img src="https://ui-avatars.com/api/?name={{ user.username }}&background=4e73df&color=fff&size=64"
+                            alt="{{ user.username }}">
                         {% endif %}
+                        <span class="user-name d-none d-lg-inline">{{ user.get_full_name|default:user.username }}</span>
                     </div>
-                    <ul class="dropdown-menu dropdown-menu-end shadow animated--grow-in">
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
-                                Hồ sơ</a></li>
-                        <li><a class="dropdown-item" href="#"><i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
-                                Cài đặt</a></li>
+                    <ul class="dropdown-menu dropdown-menu-end shadow">
                         <li>
-                            <hr class="dropdown-divider">
+                            <div class="px-3 py-2 border-bottom">
+                                <div style="font-weight:600; font-size:0.85rem;">{{
+                                    user.get_full_name|default:user.username }}</div>
+                                <div style="font-size:0.75rem; color:var(--text-muted);">{{ user.email }}</div>
+                            </div>
                         </li>
-                        <li><a class="dropdown-item" href="{% url 'logout' %}"><i
-                                    class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i> Đăng xuất</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-user fa-sm me-2"
+                                    style="color:var(--text-muted);"></i>Hồ sơ</a></li>
+                        <li><a class="dropdown-item" href="#"><i class="fas fa-cog fa-sm me-2"
+                                    style="color:var(--text-muted);"></i>Cài đặt</a></li>
+                        <li>
+                            <hr class="dropdown-divider my-1">
+                        </li>
+                        <li><a class="dropdown-item text-danger" href="{% url 'logout' %}"><i
+                                    class="fas fa-sign-out-alt fa-sm me-2"></i>Đăng xuất</a></li>
                     </ul>
                 </div>
             </div>
@@ -263,10 +627,9 @@
 
         <!-- Page Content -->
         <div class="page-content">
-            <!-- Messages -->
             {% if messages %}
             {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show mb-3" role="alert">
                 {{ message }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
@@ -280,9 +643,12 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        document.getElementById('sidebarToggle').addEventListener('click', function () {
-            document.getElementById('sidebar').classList.toggle('show');
-        });
+        const toggle = document.getElementById('sidebarToggle');
+        if (toggle) {
+            toggle.addEventListener('click', function () {
+                document.getElementById('sidebar').classList.toggle('show');
+            });
+        }
     </script>
     {% block extra_js %}{% endblock %}
 </body>

@@ -1,97 +1,141 @@
 {% extends 'attendance/admin_base.html' %}
 {% block page_title %}Quản lý Nhân viên{% endblock %}
-
 {% block title %}Danh sách Nhân viên{% endblock %}
 
 {% block content %}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-    <h2>Danh Sách Nhân Viên</h2>
-    <a href="{% url 'staff_create' %}" class="btn btn-success">➕ Thêm nhân viên</a>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-0" style="color:var(--text-main);">Danh Sách Nhân Viên</h4>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">Quản lý toàn bộ nhân sự trong hệ thống</p>
+    </div>
+    <a href="{% url 'staff_create' %}" class="btn btn-primary d-flex align-items-center gap-2">
+        <i class="fas fa-plus fa-sm"></i>
+        <span>Thêm nhân viên</span>
+    </a>
 </div>
 
-<!-- Thanh tìm kiếm đa năng -->
-<div class="card" style="margin-bottom: 1rem; padding: 1rem;">
-    <form method="get" style="display: flex; gap: 1rem; align-items: center;">
-        <input type="text" name="search" value="{{ search_query|default:'' }}"
-            placeholder="🔍 Tìm kiếm: tên, email, SĐT, giới tính (nam/nữ)..."
-            style="flex: 1; padding: 0.75rem; border: 1px solid #ddd; border-radius: 5px; font-size: 1rem;" autofocus>
-        <button type="submit" class="btn btn-primary" style="padding: 0.75rem 1.5rem;">Tìm</button>
+<!-- Search Bar -->
+<div class="card mb-4" style="border-radius:var(--radius);">
+    <div class="card-body py-3 px-4">
+        <form method="get" class="d-flex gap-2 align-items-center">
+            <div style="position:relative; flex:1;">
+                <i class="fas fa-search"
+                    style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:0.8rem;"></i>
+                <input type="text" name="search" id="searchInput" value="{{ search_query|default:'' }}"
+                    placeholder="Tìm kiếm theo tên, email, SĐT, giới tính..." class="form-control"
+                    style="padding-left:36px;" autofocus>
+            </div>
+            <button type="submit" class="btn btn-primary px-4">Tìm</button>
+            {% if search_query %}
+            <a href="{% url 'staff_list' %}" class="btn btn-outline-secondary px-3">
+                <i class="fas fa-times fa-sm"></i>
+            </a>
+            {% endif %}
+        </form>
         {% if search_query %}
-        <a href="{% url 'staff_list' %}" class="btn btn-danger" style="padding: 0.75rem 1.5rem;">Xóa lọc</a>
+        <p class="mb-0 mt-2" style="font-size:0.8rem; color:var(--text-muted);">
+            Tìm thấy <strong style="color:var(--text-main);">{{ staff_members|length }}</strong> kết quả cho "<strong
+                style="color:var(--primary);">{{ search_query }}</strong>"
+        </p>
         {% endif %}
-    </form>
-    {% if search_query %}
-    <p style="margin-top: 0.5rem; color: #7f8c8d; font-size: 0.9rem;">
-        Tìm thấy <strong>{{ staff_members|length }}</strong> kết quả cho "<strong>{{ search_query }}</strong>"
-    </p>
-    {% endif %}
+    </div>
 </div>
 
+<!-- Table Card -->
 <div class="card">
     {% if staff_members %}
-    <table>
-        <thead>
-            <tr>
-                <th>Tên đăng nhập</th>
-                <th>Họ tên</th>
-                <th>Giới tính</th>
-                <th>Email</th>
-                <th>SĐT</th>
-                <th>Ca làm việc</th>
-                <th>Face ID</th>
-                <th>Thao tác</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for staff in staff_members %}
-            <tr>
-                <td>
-                    {% if staff.avatar %}
-                    <img src="{{ staff.get_avatar_url }}" alt="{{ staff.username }}"
-                        style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-right: 8px; vertical-align: middle;">
-                    {% endif %}
-                    {{ staff.username }}
-                </td>
-                <td>{{ staff.get_full_name|default:"-" }}</td>
-                <td>{{ staff.get_gender_display }}</td>
-                <td>{{ staff.email|default:"-" }}</td>
-                <td>{{ staff.phone|default:"-" }}</td>
-                <td>{{ staff.work_shift|default:"-" }}</td>
-                <td>
-                    {% if staff.face_encoding_text %}
-                    <span style="color: #27ae60;" title="Đã đăng ký khuôn mặt">✅</span>
-                    {% else %}
-                    <span style="color: #e74c3c;" title="Chưa đăng ký khuôn mặt">❌</span>
-                    {% endif %}
-                </td>
-                <td>
-                    <a href="{% url 'staff_edit' staff.pk %}" class="btn btn-primary"
-                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Sửa</a>
-                    <a href="{% url 'staff_delete' staff.pk %}" class="btn btn-danger"
-                        style="padding: 0.5rem 1rem; font-size: 0.9rem;">Xóa</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <div class="table-responsive">
+        <table class="table table-modern mb-0" id="staffTable">
+            <thead>
+                <tr>
+                    <th>Nhân viên</th>
+                    <th>Họ tên</th>
+                    <th>Giới tính</th>
+                    <th>Email</th>
+                    <th>SĐT</th>
+                    <th>Ca làm việc</th>
+                    <th class="text-center">Face ID</th>
+                    <th class="text-center">Thao tác</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for staff in staff_members %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            {% if staff.avatar %}
+                            <img src="{{ staff.get_avatar_url }}" alt="{{ staff.username }}" class="avatar-sm">
+                            {% else %}
+                            <img src="https://ui-avatars.com/api/?name={{ staff.username }}&background=4e73df&color=fff&size=64"
+                                alt="{{ staff.username }}" class="avatar-sm">
+                            {% endif %}
+                            <span style="font-weight:500;">{{ staff.username }}</span>
+                        </div>
+                    </td>
+                    <td>{{ staff.get_full_name|default:"—" }}</td>
+                    <td>
+                        <span
+                            class="badge-status {% if staff.gender == 'M' %}bg-primary bg-opacity-10 text-primary{% else %}bg-danger bg-opacity-10 text-danger{% endif %}">
+                            {{ staff.get_gender_display }}
+                        </span>
+                    </td>
+                    <td style="color:var(--text-muted);">{{ staff.email|default:"—" }}</td>
+                    <td style="color:var(--text-muted);">{{ staff.phone|default:"—" }}</td>
+                    <td>
+                        <span class="badge-status bg-secondary bg-opacity-10 text-secondary">
+                            {{ staff.work_shift|default:"Chưa có" }}
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        {% if staff.face_encoding_text %}
+                        <span class="badge-status bg-success bg-opacity-10 text-success">
+                            <i class="fas fa-check fa-xs me-1"></i>Đã đăng ký
+                        </span>
+                        {% else %}
+                        <span class="badge-status bg-danger bg-opacity-10 text-danger">
+                            <i class="fas fa-times fa-xs me-1"></i>Chưa có
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex justify-content-center gap-1">
+                            <a href="{% url 'staff_edit' staff.pk %}" class="btn btn-sm btn-outline-primary"
+                                title="Sửa">
+                                <i class="fas fa-edit fa-xs"></i>
+                            </a>
+                            <a href="{% url 'staff_delete' staff.pk %}" class="btn btn-sm btn-outline-danger"
+                                title="Xóa">
+                                <i class="fas fa-trash fa-xs"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
-    <p style="color: #7f8c8d;">
-        {% if search_query %}
-        Không tìm thấy nhân viên nào khớp với "{{ search_query }}".
-        {% else %}
-        Chưa có nhân viên nào.
+    <div class="text-center py-5">
+        <i class="fas fa-users" style="font-size:2.5rem; color:#cbd5e0; margin-bottom:1rem; display:block;"></i>
+        <p style="color:var(--text-muted); font-size:0.9rem;">
+            {% if search_query %}
+            Không tìm thấy nhân viên nào khớp với "{{ search_query }}".
+            {% else %}
+            Chưa có nhân viên nào trong hệ thống.
+            {% endif %}
+        </p>
+        {% if not search_query %}
+        <a href="{% url 'staff_create' %}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus fa-xs me-1"></i>Thêm ngay
+        </a>
         {% endif %}
-    </p>
+    </div>
     {% endif %}
 </div>
 
 <script>
-    // Tự động submit form khi nhấn Enter
-    document.querySelector('input[name="search"]').addEventListener('keypress', function (e) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            this.form.submit();
-        }
+    document.getElementById('searchInput').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); this.form.submit(); }
     });
 </script>
 {% endblock %}

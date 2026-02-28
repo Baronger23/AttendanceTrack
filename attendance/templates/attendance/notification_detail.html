@@ -1,0 +1,123 @@
+{% extends 'attendance/admin_base.html' %}
+
+{% block title %}{{ notification.title }}{% endblock %}
+{% block page_title %}Chi tiết thông báo{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+    <a href="{% url 'notification_list' %}"
+        class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+        <i class="fas fa-arrow-left fa-xs"></i> Quay lại
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            {% if notification.type == 'WRONG_RECOGNITION' %}
+            <div
+                style="width:32px;height:32px;border-radius:8px;background:rgba(246,194,62,0.15);color:#d97706;display:flex;align-items:center;justify-content:center;font-size:0.8rem;">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            {% else %}
+            <div
+                style="width:32px;height:32px;border-radius:8px;background:rgba(78,115,223,0.1);color:#4e73df;display:flex;align-items:center;justify-content:center;font-size:0.8rem;">
+                <i class="fas fa-info-circle"></i>
+            </div>
+            {% endif %}
+            <span style="font-weight:600;">{{ notification.title }}</span>
+        </div>
+        {% if notification.is_resolved %}
+        <span class="badge-status bg-success bg-opacity-10 text-success"><i class="fas fa-check fa-xs me-1"></i>Đã xử
+            lý</span>
+        {% elif notification.is_read %}
+        <span class="badge-status bg-secondary bg-opacity-10 text-secondary">Đã đọc</span>
+        {% else %}
+        <span class="badge-status bg-primary bg-opacity-10 text-primary">Mới</span>
+        {% endif %}
+    </div>
+
+    <div class="card-body">
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <p
+                    style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:600;">
+                    Loại thông báo</p>
+                <p class="mb-0 fw-500">{{ notification.get_type_display }}</p>
+            </div>
+            <div class="col-md-6">
+                <p
+                    style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:600;">
+                    Thời gian</p>
+                <p class="mb-0 fw-500">{{ notification.created_at|date:"d/m/Y H:i:s" }}</p>
+            </div>
+        </div>
+
+        {% if notification.related_user %}
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <p
+                    style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:600;">
+                    Nhân viên liên quan</p>
+                <div class="d-flex align-items-center gap-2 mt-1">
+                    {% if notification.related_user.avatar %}
+                    <img src="{{ notification.related_user.get_avatar_url }}" class="avatar-sm" alt="">
+                    {% else %}
+                    <img src="https://ui-avatars.com/api/?name={{ notification.related_user.username }}&background=4e73df&color=fff&size=64"
+                        class="avatar-sm" alt="">
+                    {% endif %}
+                    <div>
+                        <div style="font-weight:500;">{{ notification.related_user.get_full_name }}</div>
+                        <div style="font-size:0.78rem; color:var(--text-muted);">{{ notification.related_user.username
+                            }}</div>
+                    </div>
+                </div>
+            </div>
+            {% if notification.confidence %}
+            <div class="col-md-6">
+                <p
+                    style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:600;">
+                    Độ chính xác nhận diện</p>
+                <p class="mb-0" style="font-weight:600; color:#d97706; font-size:1.1rem;">{{ notification.confidence }}%
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div>
+            <p
+                style="font-size:0.72rem; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted); font-weight:600; margin-bottom:0.5rem;">
+                Nội dung chi tiết</p>
+            <div
+                style="background:var(--bg-page); border-radius:8px; padding:1rem; border:1px solid var(--border-color);">
+                <pre
+                    style="white-space:pre-wrap; font-family:inherit; font-size:0.875rem; margin:0; color:var(--text-main);">{{ notification.message }}</pre>
+            </div>
+        </div>
+
+        {% if notification.is_resolved %}
+        <div class="alert alert-success mt-4 d-flex align-items-center gap-2">
+            <i class="fas fa-check-circle"></i>
+            Đã xử lý lúc: {{ notification.resolved_at|date:"d/m/Y H:i:s" }}
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="card-footer d-flex gap-2" style="background:transparent; border-top:1px solid var(--border-color);">
+        <form method="post">
+            {% csrf_token %}
+            {% if not notification.is_resolved %}
+            <button type="submit" name="resolve" class="btn btn-success btn-sm d-inline-flex align-items-center gap-2">
+                <i class="fas fa-check fa-xs"></i> Đánh dấu đã xử lý
+            </button>
+            {% endif %}
+            <button type="submit" name="delete"
+                class="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-2"
+                onclick="return confirm('Bạn có chắc muốn xóa thông báo này?');">
+                <i class="fas fa-trash fa-xs"></i> Xóa
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

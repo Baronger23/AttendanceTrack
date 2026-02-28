@@ -1,0 +1,93 @@
+{% extends 'attendance/admin_base.html' %}
+
+{% block title %}Thông báo{% endblock %}
+{% block page_title %}Thông báo{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-0" style="color:var(--text-main);">Thông Báo</h4>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">Tất cả thông báo từ hệ thống</p>
+    </div>
+    <a href="?mark_all_read=1" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-2">
+        <i class="fas fa-check-double fa-sm"></i>
+        <span>Đánh dấu tất cả đã đọc</span>
+    </a>
+</div>
+
+<div class="card">
+    {% if all_notifications %}
+    <div class="table-responsive">
+        <table class="table table-modern mb-0">
+            <thead>
+                <tr>
+                    <th style="width:40px;"></th>
+                    <th>Tiêu đề</th>
+                    <th>Loại</th>
+                    <th>Thời gian</th>
+                    <th>Trạng thái</th>
+                    <th class="text-center" style="width:80px;">Xem</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for notif in all_notifications %}
+                <tr {% if not notif.is_read %}style="background:#f7f9ff;" {% endif %}>
+                    <td class="text-center">
+                        {% if notif.type == 'WRONG_RECOGNITION' %}
+                        <div
+                            style="width:30px;height:30px;border-radius:8px;background:rgba(246,194,62,0.15);color:#d97706;display:flex;align-items:center;justify-content:center;font-size:0.75rem;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        {% else %}
+                        <div
+                            style="width:30px;height:30px;border-radius:8px;background:rgba(78,115,223,0.1);color:#4e73df;display:flex;align-items:center;justify-content:center;font-size:0.75rem;">
+                            <i class="fas fa-info-circle"></i>
+                        </div>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{% url 'notification_detail' notif.id %}"
+                            class="{% if not notif.is_read %}fw-semibold{% endif %}"
+                            style="text-decoration:none; color:var(--text-main);">
+                            {{ notif.title }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if notif.type == 'WRONG_RECOGNITION' %}
+                        <span class="badge-status bg-warning bg-opacity-15" style="color:#b45309;">Nhận diện sai</span>
+                        {% elif notif.type == 'NEW_STAFF' %}
+                        <span class="badge-status bg-primary bg-opacity-10 text-primary">Nhân viên mới</span>
+                        {% else %}
+                        <span class="badge-status bg-secondary bg-opacity-10 text-secondary">Hệ thống</span>
+                        {% endif %}
+                    </td>
+                    <td style="color:var(--text-muted); font-size:0.82rem;">{{ notif.created_at|date:"d/m/Y H:i" }}</td>
+                    <td>
+                        {% if notif.is_resolved %}
+                        <span class="badge-status bg-success bg-opacity-10 text-success"><i
+                                class="fas fa-check fa-xs me-1"></i>Đã xử lý</span>
+                        {% elif notif.is_read %}
+                        <span class="badge-status bg-secondary bg-opacity-10 text-secondary">Đã đọc</span>
+                        {% else %}
+                        <span class="badge-status bg-primary bg-opacity-10 text-primary">Mới</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        <a href="{% url 'notification_detail' notif.id %}" class="btn btn-sm btn-outline-primary"
+                            title="Xem chi tiết">
+                            <i class="fas fa-eye fa-xs"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i class="fas fa-check-circle" style="font-size:2.5rem; color:#48bb78; margin-bottom:1rem; display:block;"></i>
+        <p style="color:var(--text-muted);">Không có thông báo nào.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

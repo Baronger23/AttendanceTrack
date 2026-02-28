@@ -25,6 +25,12 @@ urlpatterns = [
     
     # Kiosk chấm công (Public - Không cần login)
     path('kiosk/', views.kiosk_checkin, name='kiosk_checkin'),
+    path('kiosk/', views.kiosk_checkin, name='kiosk'),
+    path('report-error/', views.report_error, name='report_error'),
+    
+    # Thông báo
+    path('admin/notifications/', views.notification_list, name='notification_list'),
+    path('admin/notifications/<int:pk>/', views.notification_detail, name='notification_detail'),
     
     # Đăng ký khuôn mặt (Cần login)
     path('face-register/', views.face_register, name='face_register'),

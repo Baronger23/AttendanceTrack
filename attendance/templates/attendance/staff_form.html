@@ -1,133 +1,272 @@
 ﻿{% extends 'attendance/admin_base.html' %}
-{% block page_title %}Thông tin Nhân viên{% endblock %}
-
-{% block title %}{% if staff %}Sửa{% else %}Thêm{% endif %} Nhân viên{% endblock %}
+{% block page_title %}{% if staff %}Sửa Nhân viên{% else %}Thêm Nhân viên{% endif %}{% endblock %}
+{% block title %}{% if staff %}Sửa{% else %}Thêm{% endif %} Nhân Viên{% endblock %}
 
 {% block content %}
-<h2>{% if staff %}Sửa Thông Tin{% else %}Thêm{% endif %} Nhân Viên</h2>
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{% url 'staff_list' %}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+        <i class="fas fa-arrow-left fa-xs"></i> Quay lại
+    </a>
+    <div>
+        <h4 class="fw-bold mb-0" style="color:var(--text-main);">
+            {% if staff %}Sửa Thông Tin Nhân Viên{% else %}Thêm Nhân Viên Mới{% endif %}
+        </h4>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">
+            {% if staff %}Cập nhật thông tin cho <strong>{{ staff.username }}</strong>{% else %}Điền thông tin nhân viên
+            mới{% endif %}
+        </p>
+    </div>
+</div>
 
-<div class="card" style="max-width: 600px;">
-    <form method="post" enctype="multipart/form-data" data-is-edit="{% if staff %}true{% else %}false{% endif %}">
-        {% csrf_token %}
+<div class="row g-4 mx-auto" style="max-width:900px;">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-user-edit me-2" style="color:var(--primary);"></i>
+                Thông tin cơ bản
+            </div>
+            <div class="card-body p-4">
+                <form method="post" enctype="multipart/form-data" id="staffForm"
+                    data-is-edit="{% if staff %}true{% else %}false{% endif %}">
+                    {% csrf_token %}
 
-        {% if not staff %}
-        <div class="form-group">
-            <label for="username">Tên đăng nhập *</label>
-            <input type="text" id="username" name="username" required>
+                    {% if not staff %}
+                    <div class="mb-3 pb-3" style="border-bottom:1px solid var(--border-color);">
+                        <p class="mb-2"
+                            style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                            Tài khoản</p>
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="form-label fw-500" style="font-size:0.82rem;" for="username">Tên đăng nhập
+                                    <span class="text-danger">*</span></label>
+                                <div style="position:relative;">
+                                    <i class="fas fa-at"
+                                        style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;"></i>
+                                    <input type="text" id="username" name="username" required class="form-control"
+                                        style="padding-left:32px;" placeholder="vd: nhanvien01">
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label fw-500" style="font-size:0.82rem;" for="password">Mật khẩu
+                                    <span class="text-danger">*</span></label>
+                                <div style="position:relative;">
+                                    <i class="fas fa-lock"
+                                        style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;"></i>
+                                    <input type="password" id="password" name="password" required class="form-control"
+                                        style="padding-left:32px;" placeholder="••••••••">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <p class="mb-2 mt-1"
+                        style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                        Họ và tên</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="last_name">Họ và tên đệm</label>
+                            <input type="text" id="last_name" name="last_name" class="form-control"
+                                value="{{ staff.last_name|default:'' }}" placeholder="vd: Nguyễn Văn">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="first_name">Tên</label>
+                            <input type="text" id="first_name" name="first_name" class="form-control"
+                                value="{{ staff.first_name|default:'' }}" placeholder="vd: An">
+                        </div>
+                    </div>
+
+                    <p class="mb-2"
+                        style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                        Liên hệ</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="email">Email</label>
+                            <div style="position:relative;">
+                                <i class="fas fa-envelope"
+                                    style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;"></i>
+                                <input type="email" id="email" name="email" class="form-control"
+                                    style="padding-left:32px;" value="{{ staff.email|default:'' }}"
+                                    placeholder="email@company.com">
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="phone">Số điện thoại</label>
+                            <div style="position:relative;">
+                                <i class="fas fa-phone"
+                                    style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;"></i>
+                                <input type="text" id="phone" name="phone" class="form-control"
+                                    style="padding-left:32px;" value="{{ staff.phone|default:'' }}"
+                                    placeholder="09xx xxx xxx">
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="mb-2"
+                        style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                        Phân công</p>
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="gender">Giới tính</label>
+                            <select id="gender" name="gender" class="form-select">
+                                <option value="M" {% if staff.gender == 'M' or not staff %}selected{% endif %}>Nam
+                                </option>
+                                <option value="F" {% if staff.gender == 'F' %}selected{% endif %}>Nữ</option>
+                                <option value="O" {% if staff.gender == 'O' %}selected{% endif %}>Khác</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="work_shift">Ca làm việc</label>
+                            <select id="work_shift" name="work_shift" class="form-select">
+                                <option value="">-- Chọn ca --</option>
+                                {% for shift in work_shifts %}
+                                <option value="{{ shift.pk }}" {% if staff.work_shift_id == shift.pk %} selected {% endif %}>
+                                    {{ shift.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>  
+                    </div>
+
+                    <div class="d-flex gap-2 pt-2" style="border-top:1px solid var(--border-color);">
+                        <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                            <i class="fas fa-save fa-xs"></i>
+                            {% if staff %}Cập nhật{% else %}Tạo nhân viên{% endif %}
+                        </button>
+                        <a href="{% url 'staff_list' %}"
+                            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                            <i class="fas fa-times fa-xs"></i> Hủy
+                        </a>
+                    </div>
+                </form>
+            </div>
         </div>
+    </div>
 
-        <div class="form-group">
-            <label for="password">Mật khẩu *</label>
-            <input type="password" id="password" name="password" required>
+    <div class="col-lg-4">
+        {% if staff %}
+        <div class="card mb-3">
+            <div class="card-header">
+                <i class="fas fa-image me-2" style="color:var(--primary);"></i>Ảnh đại diện
+            </div>
+            <div class="card-body text-center p-4">
+                {% if staff.avatar %}
+                <img src="{{ staff.get_avatar_url }}" alt="{{ staff.username }}"
+                    style="width:90px;height:90px;border-radius:50%;object-fit:cover;border:3px solid var(--border-color);margin-bottom:0.75rem;">
+                {% else %}
+                <div
+                    style="width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,#4e73df,#36b9cc);display:flex;align-items:center;justify-content:center;font-size:2rem;color:white;margin:0 auto 0.75rem;">
+                    {{ staff.first_name|first|upper|default:staff.username|first|upper }}
+                </div>
+                {% endif %}
+                <div style="font-weight:600;font-size:0.875rem;">{{ staff.get_full_name|default:staff.username }}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">@{{ staff.username }}</div>
+
+                <div class="mt-3">
+                    {% if staff.face_encoding_text %}
+                    <span class="badge-status bg-success bg-opacity-10 text-success">
+                        <i class="fas fa-check fa-xs me-1"></i>Face ID đã đăng ký
+                    </span>
+                    {% else %}
+                    <span class="badge-status bg-danger bg-opacity-10 text-danger">
+                        <i class="fas fa-times fa-xs me-1"></i>Chưa có Face ID
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
         </div>
         {% endif %}
 
-        <div class="form-group">
-            <label for="first_name">Tên</label>
-            <input type="text" id="first_name" name="first_name" value="{{ staff.first_name|default:'' }}">
-        </div>
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-camera me-2" style="color:var(--primary);"></i>
+                {% if staff %}Cập nhật Face ID{% else %}Ảnh khuôn mặt{% endif %}
+            </div>
+            <div class="card-body p-4">
+                <div style="background:var(--bg-page);border:2px dashed var(--border-color);border-radius:10px;padding:1.25rem;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+                    id="uploadZone">
+                    <i class="fas fa-cloud-upload-alt"
+                        style="font-size:1.75rem;color:#a0aec0;margin-bottom:0.5rem;display:block;"></i>
+                    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem;">
+                        {% if staff %}Tải ảnh mới để thay thế{% else %}Tải ảnh khuôn mặt{% endif %}
+                    </p>
+                    <p style="font-size:0.72rem;color:#a0aec0;margin-bottom:0.75rem;">5 – 10 ảnh, từ nhiều góc độ khác
+                        nhau</p>
+                    <label for="face_images" class="btn btn-outline-primary btn-sm" style="cursor:pointer;">
+                        <i class="fas fa-folder-open fa-xs me-1"></i>Chọn ảnh
+                    </label>
+                    <input type="file" id="face_images" name="face_images" form="staffForm" multiple accept="image/*" 
+                           {% if not staff %}required{% endif %} style="display:none;">
+                </div>
 
-        <div class="form-group">
-            <label for="last_name">Họ và tên đệm</label>
-            <input type="text" id="last_name" name="last_name" value="{{ staff.last_name|default:'' }}">
-        </div>
+                <div id="fileInfo" class="mt-2" style="font-size:0.8rem;display:none;">
+                    <div class="d-flex align-items-center gap-2 p-2 rounded"
+                        style="background:#f0fdf4;border:1px solid #bbf7d0;">
+                        <i class="fas fa-check-circle text-success fa-sm"></i>
+                        <span id="fileCount" style="color:#15803d;font-weight:500;"></span>
+                    </div>
+                </div>
 
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" value="{{ staff.email|default:'' }}">
-        </div>
-
-        <div class="form-group">
-            <label for="phone">Số điện thoại</label>
-            <input type="text" id="phone" name="phone" value="{{ staff.phone|default:'' }}">
-        </div>
-
-        <div class="form-group">
-            <label for="gender">Giới tính</label>
-            <select id="gender" name="gender">
-                <option value="M" {% if staff.gender=='M' or not staff %}selected{% endif %}>Nam</option>
-                <option value="F" {% if staff.gender=='F' %}selected{% endif %}>Nữ</option>
-                <option value="O" {% if staff.gender=='O' %}selected{% endif %}>Khác</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="work_shift">Ca làm việc</label>
-            <select id="work_shift" name="work_shift">
-                <option value="">-- Chọn ca --</option>
-                {% for shift in work_shifts %}
-                <option value="{{ shift.pk }}" {% if staff.work_shift_id==shift.pk %}selected{% endif %}>{{ shift.name
-                    }}</option>
-                {% endfor %}
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="face_images">
-                {% if staff %}
-                Cập nhật ảnh khuôn mặt (5-10 ảnh) - Tùy chọn
+                {% if not staff %}
+                <p class="mt-2 mb-0" style="font-size:0.75rem;color:var(--text-muted);">
+                    <i class="fas fa-info-circle me-1"></i>Bắt buộc khi tạo nhân viên mới
+                </p>
                 {% else %}
-                Ảnh khuôn mặt (5-10 ảnh) *
+                <p class="mt-2 mb-0" style="font-size:0.75rem;color:var(--text-muted);">
+                    <i class="fas fa-info-circle me-1"></i>Tùy chọn — ảnh cũ sẽ bị thay thế nếu upload mới
+                </p>
                 {% endif %}
-            </label>
-            <input type="file" id="face_images" name="face_images" multiple accept="image/*" {% if not staff %}
-                required{% endif %}>
-            <small style="color: #7f8c8d; display: block; margin-top: 0.5rem;">
-                {% if staff %}
-                📸 Upload ảnh mới để thay thế ảnh cũ (ảnh cũ sẽ bị xóa)
-                {% else %}
-                📸 Upload 5-10 ảnh khuôn mặt từ các góc độ khác nhau để tăng độ chính xác nhận diện
-                {% endif %}
-            </small>
+            </div>
         </div>
 
-        {% if staff and staff.avatar %}
-        <div style="margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 5px;">
-            <strong>Ảnh hiện tại:</strong><br>
-            <img src="{{ staff.get_avatar_url }}" alt="{{ staff.username }}"
-                style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin-top: 0.5rem;">
-            <br>
-            <span style="margin-top: 0.5rem; display: inline-block;">
-                <strong>Face Encoding:</strong>
-                {% if staff.face_encoding_text %}
-                <span style="color: #27ae60;">✅ Đã đăng ký</span>
-                {% else %}
-                <span style="color: #e74c3c;">❌ Chưa đăng ký - Upload ảnh mới để tạo encoding</span>
-                {% endif %}
-            </span>
-        </div>
-        {% elif staff %}
-        <div style="margin: 1rem 0; padding: 1rem; background: #fff3cd; border-radius: 5px; border: 1px solid #ffc107;">
-            <strong>⚠️ Chưa có ảnh và Face Encoding</strong><br>
-            <small>Vui lòng upload 5-10 ảnh khuôn mặt để nhân viên có thể chấm công</small>
+        {% if staff and not staff.avatar %}
+        <div class="card mt-3" style="border-color:#fbbf24;background:#fffbeb;">
+            <div class="card-body p-3">
+                <div class="d-flex gap-2 align-items-start">
+                    <i class="fas fa-exclamation-triangle text-warning mt-1 fa-sm"></i>
+                    <div>
+                        <p style="font-weight:600;font-size:0.82rem;margin-bottom:2px;">Chưa có ảnh và Face ID</p>
+                        <p style="font-size:0.78rem;color:var(--text-muted);margin:0;">Upload 5-10 ảnh để nhân viên có
+                            thể chấm công bằng nhận diện khuôn mặt.</p>
+                    </div>
+                </div>
+            </div>
         </div>
         {% endif %}
-
-        <div style="display: flex; gap: 1rem;">
-            <button type="submit" class="btn btn-success">💾 Lưu</button>
-            <a href="{% url 'staff_list' %}" class="btn btn-danger">❌ Hủy</a>
-        </div>
-    </form>
+    </div>
 </div>
 
 <script>
-    // Hiển thị preview và kiểm tra số lượng ảnh
-    document.getElementById('face_images').addEventListener('change', function (e) {
+    const fileInput = document.getElementById('face_images');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileCount = document.getElementById('fileCount');
+    const uploadZone = document.getElementById('uploadZone');
+
+    fileInput.addEventListener('change', function (e) {
         const files = e.target.files;
-        const form = document.querySelector('form');
+        const form = document.getElementById('staffForm');
         const isEdit = form.getAttribute('data-is-edit') === 'true';
 
         if (files.length > 0) {
             if (files.length < 5) {
                 alert('⚠️ Vui lòng chọn ít nhất 5 ảnh!');
                 this.value = '';
+                fileInfo.style.display = 'none';
             } else if (files.length > 10) {
                 alert('⚠️ Chỉ được chọn tối đa 10 ảnh!');
                 this.value = '';
+                fileInfo.style.display = 'none';
             } else {
-                const action = isEdit ? 'thay thế' : 'chọn';
-                alert(`✅ Đã ${action} ${files.length} ảnh`);
+                fileCount.textContent = `Đã chọn ${files.length} ảnh`;
+                fileInfo.style.display = 'block';
+                uploadZone.style.borderColor = 'var(--primary)';
             }
+        }
+    });
+
+    uploadZone.addEventListener('click', function (e) {
+        if (e.target.tagName !== 'LABEL' && e.target.tagName !== 'INPUT') {
+            fileInput.click();
         }
     });
 </script>
