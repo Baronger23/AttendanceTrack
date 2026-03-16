@@ -108,7 +108,10 @@
                             <img src="https://ui-avatars.com/api/?name={{ log.user.username }}&background=4e73df&color=fff&size=64"
                                 class="avatar-sm" alt="{{ log.user.username }}">
                             {% endif %}
-                            <span style="font-weight:500;">{{ log.user.get_full_name|default:log.user.username }}</span>
+                            <a href="{% url 'staff_edit' log.user.pk %}"
+                                style="font-weight:500; color:var(--text-main); text-decoration:none;"
+                                onmouseover="this.style.color='var(--primary)'"
+                                onmouseout="this.style.color='var(--text-main)'">{% if log.user.get_full_name %}{{ log.user.get_full_name }}{% else %}{{ log.user.username }}{% endif %}</a>
                         </div>
                     </td>
                     <td style="color:var(--text-muted);">{{ log.timestamp|date:"H:i:s" }}</td>

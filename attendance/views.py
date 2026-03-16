@@ -708,8 +708,50 @@ def kiosk_checkin(request):
                 messages.error(request, '❌ Không nhận diện được! Khuôn mặt không khớp với bất kỳ nhân viên nào trong hệ thống.')
                 return render(request, 'attendance/kiosk.html')
             
-            # Tìm thấy nhân viên - Tạo log chấm công
+            # Tìm thấy nhân viên - Kiểm tra ca làm việc
             today = timezone.now().date()
+            now_time = timezone.localtime(timezone.now()).time()
+            
+            # Kiểm tra nhân viên có đang trong ca làm việc không
+            if best_match.work_shift:
+                shift = best_match.work_shift
+                from datetime import timedelta, datetime as dt
+                
+                # Cho phép chấm công sớm 60 phút trước ca và trễ 30 phút sau ca
+                EARLY_MINUTES = 60
+                LATE_AFTER_END_MINUTES = 30
+                
+                # Chuyển time thành datetime để tính toán
+                today_dt = timezone.localtime(timezone.now()).date()
+                shift_start_dt = dt.combine(today_dt, shift.start_time)
+                shift_end_dt = dt.combine(today_dt, shift.end_time)
+                
+                # Tính khoảng cho phép
+                allowed_start = (shift_start_dt - timedelta(minutes=EARLY_MINUTES)).time()
+                allowed_end = (shift_end_dt + timedelta(minutes=LATE_AFTER_END_MINUTES)).time()
+                
+                # Xử lý ca đêm (ví dụ: 22:00 - 06:00)
+                if shift.start_time > shift.end_time:
+                    # Ca đêm: cho phép từ (start - 60min) đến hết ngày HOẶC từ đầu ngày đến (end + 30min)
+                    in_shift = now_time >= allowed_start or now_time <= allowed_end
+                else:
+                    # Ca bình thường: chấm công trong khoảng [start - 60min, end + 30min]
+                    in_shift = allowed_start <= now_time <= allowed_end
+                
+                if not in_shift:
+                    messages.error(
+                        request, 
+                        f'❌ Chưa đến ca của bạn! Ca "{shift.name}" bắt đầu lúc {shift.start_time.strftime("%H:%M")} - {shift.end_time.strftime("%H:%M")}. '
+                        f'Bạn có thể chấm công từ {allowed_start.strftime("%H:%M")}.'
+                    )
+                    # Vẫn trả về success view để hiện thông tin nhân viên + thông báo lỗi
+                    confidence = round((1 - best_distance) * 100, 1)
+                    context = {
+                        'success': True,
+                        'user': best_match,
+                        'confidence': confidence
+                    }
+                    return render(request, 'attendance/kiosk.html', context)
             
             # Kiểm tra đã chấm công hôm nay chưa
             existing_log = AttendanceLog.objects.filter(
@@ -904,3 +946,144 @@ def face_register(request):
             return render(request, 'attendance/face_register.html')
     
     return render(request, 'attendance/face_register.html')
+
+
+# ==================== LỊCH SỬ CHẤM CÔNG ====================
+
+@login_required
+def attendance_history(request):
+    """Lịch sử chấm công với bộ lọc"""
+    if request.user.role != User.Role.ADMIN:
+        return redirect('staff_dashboard')
+    
+    from django.core.paginator import Paginator
+    from django.db.models import Q
+    
+    logs = AttendanceLog.objects.select_related('user', 'user__work_shift').order_by('-timestamp')
+    
+    # Bộ lọc theo nhân viên
+    staff_id = request.GET.get('staff_id')
+    if staff_id:
+        logs = logs.filter(user_id=staff_id)
+    
+    # Bộ lọc theo ngày
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    if date_from:
+        logs = logs.filter(timestamp__date__gte=date_from)
+    if date_to:
+        logs = logs.filter(timestamp__date__lte=date_to)
+    
+    # Bộ lọc theo trạng thái
+    status = request.GET.get('status')
+    if status:
+        logs = logs.filter(status=status)
+    
+    # Phân trang
+    paginator = Paginator(logs, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Danh sách nhân viên cho dropdown
+    staff_members = User.objects.filter(role=User.Role.STAFF).order_by('last_name', 'first_name')
+    
+    context = {
+        'page_title': 'Lịch sử chấm công',
+        'page_obj': page_obj,
+        'staff_members': staff_members,
+        'selected_staff': staff_id,
+        'date_from': date_from or '',
+        'date_to': date_to or '',
+        'selected_status': status or '',
+    }
+    return render(request, 'attendance/attendance_history.html', context)
+
+
+# ==================== BÁO CÁO THÁNG ====================
+
+@login_required
+def monthly_report(request):
+    """Báo cáo chấm công theo tháng"""
+    if request.user.role != User.Role.ADMIN:
+        return redirect('staff_dashboard')
+    
+    from datetime import datetime, date
+    import calendar
+    from django.db.models import Count, Q
+    
+    # Lấy tháng/năm từ request (mặc định: tháng hiện tại)
+    now = timezone.localtime(timezone.now())
+    month = int(request.GET.get('month', now.month))
+    year = int(request.GET.get('year', now.year))
+    
+    # Số ngày làm việc trong tháng (trừ thứ 7, CN)
+    _, days_in_month = calendar.monthrange(year, month)
+    workdays = 0
+    for day in range(1, days_in_month + 1):
+        d = date(year, month, day)
+        if d.weekday() < 5:  # Thứ 2-6
+            workdays += 1
+    
+    # Lấy tất cả nhân viên
+    staff_members = User.objects.filter(role=User.Role.STAFF).select_related('work_shift').order_by('last_name', 'first_name')
+    
+    # Thống kê cho từng nhân viên
+    report_data = []
+    total_on_time = 0
+    total_late = 0
+    total_absent = 0
+    
+    chart_labels = []
+    chart_rates = []
+    
+    for staff in staff_members:
+        logs = AttendanceLog.objects.filter(
+            user=staff,
+            timestamp__year=year,
+            timestamp__month=month
+        )
+        
+        on_time = logs.filter(status=AttendanceLog.Status.ON_TIME).count()
+        late = logs.filter(status=AttendanceLog.Status.LATE).count()
+        absent = logs.filter(status=AttendanceLog.Status.ABSENT).count()
+        days_present = logs.values('timestamp__date').distinct().count()
+        
+        # Tỷ lệ chuyên cần (%)
+        rate = round((days_present / workdays) * 100, 1) if workdays > 0 else 0
+        
+        report_data.append({
+            'staff': staff,
+            'days_present': days_present,
+            'on_time': on_time,
+            'late': late,
+            'absent': absent,
+            'rate': rate,
+        })
+        
+        total_on_time += on_time
+        total_late += late
+        total_absent += absent
+        
+        # Data cho chart
+        name = staff.get_full_name() or staff.username
+        chart_labels.append(name)
+        chart_rates.append(rate)
+    
+    # Tạo danh sách năm cho dropdown (3 năm trước → năm hiện tại)
+    year_choices = list(range(now.year - 2, now.year + 1))
+    
+    context = {
+        'page_title': f'Báo cáo tháng {month}/{year}',
+        'report_data': report_data,
+        'month': month,
+        'year': year,
+        'workdays': workdays,
+        'total_staff': staff_members.count(),
+        'total_on_time': total_on_time,
+        'total_late': total_late,
+        'total_absent': total_absent,
+        'year_choices': year_choices,
+        'chart_labels': chart_labels,
+        'chart_rates': chart_rates,
+    }
+    return render(request, 'attendance/monthly_report.html', context)

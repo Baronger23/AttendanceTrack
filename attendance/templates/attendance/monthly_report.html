@@ -1,0 +1,214 @@
+{% extends 'attendance/admin_base.html' %}
+
+{% block title %}Báo cáo tháng {{ month }}/{{ year }}{% endblock %}
+{% block page_title %}Báo cáo tháng{% endblock %}
+
+{% block content %}
+<!-- Bộ chọn tháng -->
+<div class="card mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Tháng</label>
+                <select name="month" class="form-select form-select-sm" style="width:auto;">
+                    {% for m in "123456789" %}
+                    <option value="{{ forloop.counter }}" {% if month == forloop.counter %}selected{% endif %}>Tháng {{ forloop.counter }}</option>
+                    {% endfor %}
+                    <option value="10" {% if month == 10 %}selected{% endif %}>Tháng 10</option>
+                    <option value="11" {% if month == 11 %}selected{% endif %}>Tháng 11</option>
+                    <option value="12" {% if month == 12 %}selected{% endif %}>Tháng 12</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label" style="font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Năm</label>
+                <select name="year" class="form-select form-select-sm" style="width:auto;">
+                    {% for y in year_choices %}
+                    <option value="{{ y }}" {% if year == y %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1">
+                    <i class="fas fa-chart-bar fa-xs"></i> Xem báo cáo
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Stat Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body py-3 d-flex align-items-center gap-3">
+                <div style="width:42px;height:42px;border-radius:10px;background:rgba(78,115,223,0.1);color:#4e73df;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div>
+                    <div style="font-size:0.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Nhân viên</div>
+                    <div style="font-size:1.3rem; font-weight:700; color:var(--text-main);">{{ total_staff }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body py-3 d-flex align-items-center gap-3">
+                <div style="width:42px;height:42px;border-radius:10px;background:rgba(28,200,138,0.1);color:#1cc88a;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+                    <i class="fas fa-check"></i>
+                </div>
+                <div>
+                    <div style="font-size:0.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Đúng giờ</div>
+                    <div style="font-size:1.3rem; font-weight:700; color:#1cc88a;">{{ total_on_time }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body py-3 d-flex align-items-center gap-3">
+                <div style="width:42px;height:42px;border-radius:10px;background:rgba(246,194,62,0.1);color:#f6c23e;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div>
+                    <div style="font-size:0.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Đi muộn</div>
+                    <div style="font-size:1.3rem; font-weight:700; color:#f6c23e;">{{ total_late }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body py-3 d-flex align-items-center gap-3">
+                <div style="width:42px;height:42px;border-radius:10px;background:rgba(231,74,59,0.1);color:#e74a3b;display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+                    <i class="fas fa-times"></i>
+                </div>
+                <div>
+                    <div style="font-size:0.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Vắng mặt</div>
+                    <div style="font-size:1.3rem; font-weight:700; color:#e74a3b;">{{ total_absent }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bảng chi tiết -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span style="font-weight:600; font-size:0.9rem;"><i class="fas fa-table fa-sm me-1" style="color:var(--primary);"></i> Chi tiết nhân viên</span>
+        <span style="font-size:0.75rem; color:var(--text-muted);">{{ workdays }} ngày làm việc</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover mb-0" style="font-size:0.82rem;">
+            <thead>
+                <tr>
+                    <th style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600;">Nhân viên</th>
+                    <th class="text-center" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600;">Đi làm</th>
+                    <th class="text-center" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:#1cc88a; font-weight:600;">Đúng giờ</th>
+                    <th class="text-center" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:#f6c23e; font-weight:600;">Muộn</th>
+                    <th class="text-center" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:#e74a3b; font-weight:600;">Vắng</th>
+                    <th class="text-center" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600;">Tỷ lệ</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in report_data %}
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            {% if item.staff.avatar %}
+                            <img src="{{ item.staff.get_avatar_url }}" class="avatar-sm" alt="">
+                            {% else %}
+                            <img src="https://ui-avatars.com/api/?name={{ item.staff.username }}&background=4e73df&color=fff&size=64" class="avatar-sm" alt="">
+                            {% endif %}
+                            <a href="{% url 'staff_edit' item.staff.pk %}" style="font-weight:500; color:var(--text-main); text-decoration:none;">{% if item.staff.get_full_name %}{{ item.staff.get_full_name }}{% else %}{{ item.staff.username }}{% endif %}</a>
+                        </div>
+                    </td>
+                    <td class="text-center" style="font-weight:600;">{{ item.days_present }}</td>
+                    <td class="text-center" style="color:#1cc88a; font-weight:500;">{{ item.on_time }}</td>
+                    <td class="text-center" style="color:#f6c23e; font-weight:500;">{{ item.late }}</td>
+                    <td class="text-center" style="color:#e74a3b; font-weight:500;">{{ item.absent }}</td>
+                    <td class="text-center">
+                        {% if item.rate >= 80 %}
+                        <span class="badge-status bg-success bg-opacity-10 text-success">{{ item.rate }}%</span>
+                        {% elif item.rate >= 50 %}
+                        <span class="badge-status bg-warning bg-opacity-15" style="color:#b45309;">{{ item.rate }}%</span>
+                        {% else %}
+                        <span class="badge-status bg-danger bg-opacity-10 text-danger">{{ item.rate }}%</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center py-4" style="color:var(--text-muted);">
+                        <i class="fas fa-inbox d-block mb-2" style="font-size:1.5rem; color:#cbd5e0;"></i>
+                        Không có nhân viên nào.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Biểu đồ -->
+<div class="card">
+    <div class="card-header">
+        <span style="font-weight:600; font-size:0.9rem;"><i class="fas fa-chart-bar fa-sm me-1" style="color:var(--primary);"></i> Tỷ lệ chuyên cần (%)</span>
+    </div>
+    <div class="card-body">
+        <div style="height:280px;">
+            <canvas id="reportChart"></canvas>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ chart_labels|json_script:"chart-labels" }}
+{{ chart_rates|json_script:"chart-rates" }}
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const labels = JSON.parse(document.getElementById('chart-labels').textContent);
+    const rates = JSON.parse(document.getElementById('chart-rates').textContent);
+
+    const colors = rates.map(r => r >= 80 ? '#1cc88a' : r >= 50 ? '#f6c23e' : '#e74a3b');
+
+    const ctx = document.getElementById('reportChart');
+    if (ctx) {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Chuyên cần',
+                    data: rates,
+                    backgroundColor: colors,
+                    borderRadius: 5,
+                    maxBarThickness: 40,
+                }]
+            },
+            options: {
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => v + '%', color: '#718096', font: { size: 11 } },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: {
+                        ticks: { color: '#718096', font: { size: 10 }, maxRotation: 45, minRotation: 0 },
+                        grid: { display: false }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ctx.parsed.y + '%' } }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+

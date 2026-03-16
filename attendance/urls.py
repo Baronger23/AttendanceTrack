@@ -34,5 +34,9 @@ urlpatterns = [
     
     # Đăng ký khuôn mặt (Cần login)
     path('face-register/', views.face_register, name='face_register'),
+    
+    # Báo cáo
+    path('admin/attendance-history/', views.attendance_history, name='attendance_history'),
+    path('admin/monthly-report/', views.monthly_report, name='monthly_report'),
 ]
 

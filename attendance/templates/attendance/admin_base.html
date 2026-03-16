@@ -514,13 +514,13 @@
 
             <div class="sidebar-section-label">Báo cáo</div>
             <li class="nav-item">
-                <a href="#" class="nav-link">
+                <a href="{% url 'attendance_history' %}" class="nav-link {% if 'attendance-history' in request.path %}active{% endif %}">
                     <i class="fas fa-history"></i>
                     <span>Lịch sử chấm công</span>
                 </a>
             </li>
             <li class="nav-item">
-                <a href="#" class="nav-link">
+                <a href="{% url 'monthly_report' %}" class="nav-link {% if 'monthly-report' in request.path %}active{% endif %}">
                     <i class="fas fa-file-alt"></i>
                     <span>Báo cáo tháng</span>
                 </a>
@@ -553,8 +553,8 @@
                         <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                             <span style="font-weight:600; font-size:0.85rem;">Thông báo</span>
                             {% if unread_notifications_count > 0 %}
-                            <span class="badge bg-primary rounded-pill" style="font-size:0.72rem;">{{
-                                unread_notifications_count }} mới</span>
+                            <span class="badge bg-primary rounded-pill" style="font-size:0.72rem;">
+                                {{ unread_notifications_count }} mới</span>
                             {% endif %}
                         </div>
                         {% if notifications %}
@@ -606,8 +606,7 @@
                     <ul class="dropdown-menu dropdown-menu-end shadow">
                         <li>
                             <div class="px-3 py-2 border-bottom">
-                                <div style="font-weight:600; font-size:0.85rem;">{{
-                                    user.get_full_name|default:user.username }}</div>
+                                <div style="font-weight:600; font-size:0.85rem;">{{ user.get_full_name|default:user.username }}</div>
                                 <div style="font-size:0.75rem; color:var(--text-muted);">{{ user.email }}</div>
                             </div>
                         </li>
