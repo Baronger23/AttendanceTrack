@@ -1,21 +1,57 @@
 {% extends 'attendance/admin_base.html' %}
 {% block page_title %}Xóa Ca làm việc{% endblock %}
-
 {% block title %}Xóa Ca làm việc{% endblock %}
 
 {% block content %}
-<h2>Xác Nhận Xóa Ca Làm Việc</h2>
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{% url 'shift_list' %}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+        <i class="fas fa-arrow-left fa-xs"></i> Quay lại
+    </a>
+    <div>
+        <h4 class="fw-bold mb-0" style="color:var(--text-main);">Xóa Ca Làm Việc</h4>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">Xác nhận xóa ca <strong>{{ shift.name }}</strong></p>
+    </div>
+</div>
 
-<div class="card" style="max-width: 600px;">
-    <p>Bạn có chắc chắn muốn xóa ca làm việc <strong>{{ shift.name }}</strong>?</p>
-    <p style="color: #e74c3c;">⚠️ Hành động này không thể hoàn tác!</p>
+<div style="max-width:500px;">
+    <div class="card" style="border-color:#fca5a5;">
+        <div class="card-body p-4 text-center">
+            <div style="width:64px;height:64px;border-radius:50%;background:rgba(231,74,59,0.1);display:flex;align-items:center;justify-content:center;font-size:1.5rem;color:#e74a3b;margin:0 auto 1rem;">
+                <i class="fas fa-trash-alt"></i>
+            </div>
+            <h5 class="fw-bold mb-2" style="color:var(--text-main);">Xóa "{{ shift.name }}"?</h5>
+            <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:0.5rem;">
+                Bạn có chắc chắn muốn xóa ca làm việc này?
+            </p>
 
-    <form method="post" style="margin-top: 1rem;">
-        {% csrf_token %}
-        <div style="display: flex; gap: 1rem;">
-            <button type="submit" class="btn btn-danger">🗑️ Xóa</button>
-            <a href="{% url 'shift_list' %}" class="btn btn-primary">❌ Hủy</a>
+            <div class="d-flex justify-content-center gap-2 mb-3 flex-wrap">
+                <span class="badge-status bg-success bg-opacity-10 text-success">
+                    <i class="fas fa-play fa-xs me-1"></i>{{ shift.start_time }}
+                </span>
+                <span class="badge-status bg-danger bg-opacity-10 text-danger">
+                    <i class="fas fa-stop fa-xs me-1"></i>{{ shift.end_time }}
+                </span>
+            </div>
+
+            <div class="p-2 rounded mb-3" style="background:#fef2f2;border:1px solid #fecaca;">
+                <p style="font-size:0.78rem; color:#dc2626; margin:0;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>
+                    Hành động này không thể hoàn tác! Nhân viên thuộc ca này sẽ không còn ca làm việc.
+                </p>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-2">
+                        <i class="fas fa-trash fa-xs"></i> Xác nhận xóa
+                    </button>
+                    <a href="{% url 'shift_list' %}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                        <i class="fas fa-times fa-xs"></i> Hủy
+                    </a>
+                </div>
+            </form>
         </div>
-    </form>
+    </div>
 </div>
 {% endblock %}

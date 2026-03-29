@@ -5,6 +5,7 @@ urlpatterns = [
     # Authentication
     path('', views.login_view, name='login'),
     path('logout/', views.logout_view, name='logout'),
+    path('open-kiosk/', views.open_kiosk, name='open_kiosk'),
     
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),

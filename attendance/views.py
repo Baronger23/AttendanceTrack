@@ -35,6 +35,13 @@ def logout_view(request):
     return redirect('login')
 
 
+@login_required
+def open_kiosk(request):
+    """Đăng xuất admin và chuyển sang trang Kiosk"""
+    logout(request)
+    return redirect('kiosk')
+
+
 # ==================== DASHBOARD ====================
 
 @login_required
@@ -963,8 +970,10 @@ def attendance_history(request):
     
     # Bộ lọc theo nhân viên
     staff_id = request.GET.get('staff_id')
-    if staff_id:
+    if staff_id and staff_id.isdigit():
         logs = logs.filter(user_id=staff_id)
+    else:
+        staff_id = ''
     
     # Bộ lọc theo ngày
     date_from = request.GET.get('date_from')
@@ -1024,47 +1033,54 @@ def monthly_report(request):
         if d.weekday() < 5:  # Thứ 2-6
             workdays += 1
     
-    # Lấy tất cả nhân viên
-    staff_members = User.objects.filter(role=User.Role.STAFF).select_related('work_shift').order_by('last_name', 'first_name')
+    # Thống kê bằng 1 query duy nhất (thay vì N queries cho N nhân viên)
+    staff_members = User.objects.filter(
+        role=User.Role.STAFF
+    ).select_related('work_shift').annotate(
+        on_time=Count('logs', filter=Q(
+            logs__timestamp__year=year,
+            logs__timestamp__month=month,
+            logs__status=AttendanceLog.Status.ON_TIME
+        )),
+        late=Count('logs', filter=Q(
+            logs__timestamp__year=year,
+            logs__timestamp__month=month,
+            logs__status=AttendanceLog.Status.LATE
+        )),
+        absent=Count('logs', filter=Q(
+            logs__timestamp__year=year,
+            logs__timestamp__month=month,
+            logs__status=AttendanceLog.Status.ABSENT
+        )),
+        days_present=Count('logs__timestamp__date', filter=Q(
+            logs__timestamp__year=year,
+            logs__timestamp__month=month,
+        ), distinct=True),
+    ).order_by('last_name', 'first_name')
     
-    # Thống kê cho từng nhân viên
     report_data = []
     total_on_time = 0
     total_late = 0
     total_absent = 0
-    
     chart_labels = []
     chart_rates = []
     
     for staff in staff_members:
-        logs = AttendanceLog.objects.filter(
-            user=staff,
-            timestamp__year=year,
-            timestamp__month=month
-        )
-        
-        on_time = logs.filter(status=AttendanceLog.Status.ON_TIME).count()
-        late = logs.filter(status=AttendanceLog.Status.LATE).count()
-        absent = logs.filter(status=AttendanceLog.Status.ABSENT).count()
-        days_present = logs.values('timestamp__date').distinct().count()
-        
-        # Tỷ lệ chuyên cần (%)
-        rate = round((days_present / workdays) * 100, 1) if workdays > 0 else 0
+        rate = round((staff.days_present / workdays) * 100, 1) if workdays > 0 else 0
         
         report_data.append({
             'staff': staff,
-            'days_present': days_present,
-            'on_time': on_time,
-            'late': late,
-            'absent': absent,
+            'days_present': staff.days_present,
+            'on_time': staff.on_time,
+            'late': staff.late,
+            'absent': staff.absent,
             'rate': rate,
         })
         
-        total_on_time += on_time
-        total_late += late
-        total_absent += absent
+        total_on_time += staff.on_time
+        total_late += staff.late
+        total_absent += staff.absent
         
-        # Data cho chart
         name = staff.get_full_name() or staff.username
         chart_labels.append(name)
         chart_rates.append(rate)

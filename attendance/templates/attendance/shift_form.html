@@ -1,41 +1,141 @@
 {% extends 'attendance/admin_base.html' %}
-{% block page_title %}Thông tin Ca làm việc{% endblock %}
-
+{% block page_title %}{% if shift %}Sửa Ca làm việc{% else %}Thêm Ca làm việc{% endif %}{% endblock %}
 {% block title %}{% if shift %}Sửa{% else %}Thêm{% endif %} Ca làm việc{% endblock %}
 
 {% block content %}
-<h2>{% if shift %}Sửa{% else %}Thêm{% endif %} Ca Làm Việc</h2>
+<div class="d-flex align-items-center gap-3 mb-4">
+    <a href="{% url 'shift_list' %}" class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-2">
+        <i class="fas fa-arrow-left fa-xs"></i> Quay lại
+    </a>
+    <div>
+        <h4 class="fw-bold mb-0" style="color:var(--text-main);">
+            {% if shift %}Sửa Ca Làm Việc{% else %}Thêm Ca Làm Việc Mới{% endif %}
+        </h4>
+        <p class="text-muted mb-0" style="font-size:0.8rem;">
+            {% if shift %}Cập nhật thông tin cho ca <strong>{{ shift.name }}</strong>{% else %}Điền thông tin ca làm việc mới{% endif %}
+        </p>
+    </div>
+</div>
 
-<div class="card" style="max-width: 600px;">
-    <form method="post">
-        {% csrf_token %}
+<div class="row g-4 mx-auto" style="max-width:700px;">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-clock me-2" style="color:var(--primary);"></i>
+                Thông tin ca làm việc
+            </div>
+            <div class="card-body p-4">
+                <form method="post" id="shiftForm">
+                    {% csrf_token %}
 
-        <div class="form-group">
-            <label for="name">Tên ca *</label>
-            <input type="text" id="name" name="name" required placeholder="VD: Ca sáng"
-                value="{{ shift.name|default:'' }}">
+                    <p class="mb-2 mt-1"
+                        style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                        Tên ca</p>
+                    <div class="mb-3">
+                        <label class="form-label fw-500" style="font-size:0.82rem;" for="name">Tên ca làm việc
+                            <span class="text-danger">*</span></label>
+                        <div style="position:relative;">
+                            <i class="fas fa-tag"
+                                style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:0.78rem;"></i>
+                            <input type="text" id="name" name="name" required class="form-control"
+                                style="padding-left:32px;" placeholder="VD: Ca sáng"
+                                value="{{ shift.name|default:'' }}">
+                        </div>
+                    </div>
+
+                    <p class="mb-2"
+                        style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                        Thời gian</p>
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="start_time">Giờ bắt đầu
+                                <span class="text-danger">*</span></label>
+                            <div style="position:relative;">
+                                <i class="fas fa-play"
+                                    style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#1cc88a;font-size:0.7rem;"></i>
+                                <input type="time" id="start_time" name="start_time" required class="form-control"
+                                    style="padding-left:32px;" value="{{ shift.start_time|default:'' }}">
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label" style="font-size:0.82rem;" for="end_time">Giờ kết thúc
+                                <span class="text-danger">*</span></label>
+                            <div style="position:relative;">
+                                <i class="fas fa-stop"
+                                    style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#e74a3b;font-size:0.7rem;"></i>
+                                <input type="time" id="end_time" name="end_time" required class="form-control"
+                                    style="padding-left:32px;" value="{{ shift.end_time|default:'' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="mb-2"
+                        style="font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:0.6px; color:var(--text-muted);">
+                        Cài đặt</p>
+                    <div class="mb-4">
+                        <label class="form-label" style="font-size:0.82rem;" for="late_grace_period">Cho phép trễ (phút)</label>
+                        <div style="position:relative;">
+                            <i class="fas fa-hourglass-half"
+                                style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#f6c23e;font-size:0.78rem;"></i>
+                            <input type="number" id="late_grace_period" name="late_grace_period" class="form-control"
+                                style="padding-left:32px;" value="{{ shift.late_grace_period|default:'15' }}" min="0">
+                        </div>
+                    </div>
+
+                    <div class="d-flex gap-2 pt-2" style="border-top:1px solid var(--border-color);">
+                        <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                            <i class="fas fa-save fa-xs"></i>
+                            {% if shift %}Cập nhật{% else %}Tạo ca làm việc{% endif %}
+                        </button>
+                        <a href="{% url 'shift_list' %}"
+                            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                            <i class="fas fa-times fa-xs"></i> Hủy
+                        </a>
+                    </div>
+                </form>
+            </div>
         </div>
+    </div>
 
-        <div class="form-group">
-            <label for="start_time">Giờ bắt đầu *</label>
-            <input type="time" id="start_time" name="start_time" required value="{{ shift.start_time|default:'' }}">
+    <div class="col-lg-4">
+        {% if shift %}
+        <div class="card">
+            <div class="card-header">
+                <i class="fas fa-info-circle me-2" style="color:var(--primary);"></i>Thông tin hiện tại
+            </div>
+            <div class="card-body p-4 text-center">
+                <div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#4e73df,#36b9cc);display:flex;align-items:center;justify-content:center;font-size:1.3rem;color:white;margin:0 auto 0.75rem;">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div style="font-weight:600;font-size:0.875rem;">{{ shift.name }}</div>
+                <div class="mt-2 d-flex justify-content-center gap-2 flex-wrap">
+                    <span class="badge-status bg-success bg-opacity-10 text-success">
+                        <i class="fas fa-play fa-xs me-1"></i>{{ shift.start_time }}
+                    </span>
+                    <span class="badge-status bg-danger bg-opacity-10 text-danger">
+                        <i class="fas fa-stop fa-xs me-1"></i>{{ shift.end_time }}
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="badge-status bg-warning bg-opacity-15" style="color:#b45309;">
+                        <i class="fas fa-hourglass-half fa-xs me-1"></i>Trễ {{ shift.late_grace_period }} phút
+                    </span>
+                </div>
+            </div>
         </div>
-
-        <div class="form-group">
-            <label for="end_time">Giờ kết thúc *</label>
-            <input type="time" id="end_time" name="end_time" required value="{{ shift.end_time|default:'' }}">
+        {% else %}
+        <div class="card" style="border-color:#93c5fd;background:#eff6ff;">
+            <div class="card-body p-3">
+                <div class="d-flex gap-2 align-items-start">
+                    <i class="fas fa-lightbulb mt-1 fa-sm" style="color:#3b82f6;"></i>
+                    <div>
+                        <p style="font-weight:600;font-size:0.82rem;margin-bottom:2px;">Mẹo</p>
+                        <p style="font-size:0.78rem;color:var(--text-muted);margin:0;">Tạo ca làm việc trước, sau đó phân công cho nhân viên trong phần quản lý nhân viên.</p>
+                    </div>
+                </div>
+            </div>
         </div>
-
-        <div class="form-group">
-            <label for="late_grace_period">Cho phép trễ (phút)</label>
-            <input type="number" id="late_grace_period" name="late_grace_period"
-                value="{{ shift.late_grace_period|default:'15' }}" min="0">
-        </div>
-
-        <div style="display: flex; gap: 1rem;">
-            <button type="submit" class="btn btn-success">💾 Lưu</button>
-            <a href="{% url 'shift_list' %}" class="btn btn-danger">❌ Hủy</a>
-        </div>
-    </form>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}
