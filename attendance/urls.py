@@ -29,6 +29,10 @@ urlpatterns = [
     path('kiosk/', views.kiosk_checkin, name='kiosk'),
     path('report-error/', views.report_error, name='report_error'),
     
+    # Async Kiosk API (AJAX + Celery)
+    path('api/kiosk/checkin/', views.kiosk_checkin_async, name='kiosk_checkin_async'),
+    path('api/kiosk/result/<str:task_id>/', views.check_result, name='check_result'),
+    
     # Thông báo
     path('admin/notifications/', views.notification_list, name='notification_list'),
     path('admin/notifications/<int:pk>/', views.notification_detail, name='notification_detail'),

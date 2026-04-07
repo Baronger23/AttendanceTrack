@@ -247,9 +247,10 @@ def staff_create(request):
                     from supabase import create_client
                     import os
                     from django.conf import settings
-                    import face_recognition
                     import cv2
                     import numpy as np
+                    from attendance.services.face_service import FaceService
+                    from attendance.models import FaceEmbedding
                     
                     # Đảm bảo SUPABASE_URL có trailing slash
                     supabase_url = settings.SUPABASE_URL
@@ -262,22 +263,17 @@ def staff_create(request):
                         settings.SUPABASE_KEY
                     )
                     
-                    # Lưu face encodings từ nhiều ảnh
-                    all_encodings = []
-                    uploaded_urls = []
-                    
+                    # Upload ảnh lên Supabase Storage
+                    cv_images = []
                     for idx, image in enumerate(face_images, start=1):
-                        # Lấy extension từ tên file gốc
                         ext = os.path.splitext(image.name)[1] or '.jpg'
-                        # Tạo tên file: username (1).jpg, username (2).jpg
                         file_name = f"{username} ({idx}){ext}"
                         file_path = f"avatars/{file_name}"
                         
-                        # Upload lên Supabase Storage
                         image.seek(0)
                         file_content = image.read()
                         
-                        response = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
+                        supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
                             path=file_path,
                             file=file_content,
                             file_options={
@@ -286,48 +282,37 @@ def staff_create(request):
                             }
                         )
                         
-                        # Lấy public URL
-                        public_url = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).get_public_url(file_path)
-                        uploaded_urls.append(public_url)
-                        
-                        # Xử lý face encoding
+                        # Decode image for face processing
                         image.seek(0)
                         img_array = np.frombuffer(image.read(), np.uint8)
                         img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
                         if img is not None:
-                            # Resize ảnh lớn hơn để giữ chi tiết
-                            max_dimension = 1000
-                            height, width = img.shape[:2]
-                            if max(height, width) > max_dimension:
-                                scale = max_dimension / max(height, width)
-                                img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-                            
-                            # Histogram equalization để chuẩn hóa ánh sáng
-                            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-                            lab[:,:,0] = cv2.equalizeHist(lab[:,:,0])
-                            img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-                            
-                            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                            
-                            # Phát hiện khuôn mặt với HOG (nhanh hơn CNN)
-                            face_locations = face_recognition.face_locations(rgb_img, number_of_times_to_upsample=1, model="hog")
-                            
-                            # Tìm và mã hóa khuôn mặt với num_jitters=5 cho độ chính xác cao
-                            if face_locations:
-                                face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=5)
-                                if face_encodings:
-                                    all_encodings.append(face_encodings[0].tolist())
+                            cv_images.append(img)
                     
                     # Lưu path ảnh đầu tiên vào avatar field
                     user.avatar = f"avatars/{username} (1){os.path.splitext(face_images[0].name)[1] or '.jpg'}"
                     
-                    # Lưu face encodings (trung bình của tất cả ảnh)
-                    if all_encodings:
-                        avg_encoding = np.mean(all_encodings, axis=0).tolist()
-                        user.set_encoding(np.array(avg_encoding))
-                        messages.success(request, f'✅ Đã upload {len(face_images)} ảnh và tạo face encoding!')
-                    else:
-                        messages.warning(request, f'⚠️ Không phát hiện khuôn mặt trong ảnh. Vui lòng upload lại!')
+                    # === CNN Pipeline: Detect → Align → Augment → Embed ===
+                    if cv_images:
+                        face_service = FaceService()
+                        result = face_service.register_multiple_images(cv_images)
+                        
+                        if result['success']:
+                            # Lưu embedding trung bình vào User (backward compatible)
+                            user.set_encoding(result['embedding'])
+                            
+                            # Lưu tất cả embeddings vào FaceEmbedding table (pgvector)
+                            for i, emb in enumerate(result['all_embeddings']):
+                                fe = FaceEmbedding(
+                                    user=user,
+                                    source='original' if i == 0 else 'augmented',
+                                )
+                                fe.set_embedding(np.array(emb))
+                                fe.save()
+                            
+                            messages.success(request, f'✅ Đã upload {len(face_images)} ảnh và tạo {len(result["all_embeddings"])} face embeddings (CNN 512D)!')
+                        else:
+                            messages.warning(request, f'⚠️ {result["error"]}')
                     
                     user.save()
                     
@@ -372,7 +357,6 @@ def staff_edit(request, pk):
                 from supabase import create_client
                 import os
                 from django.conf import settings
-                import face_recognition
                 import cv2
                 import numpy as np
                 
@@ -406,8 +390,7 @@ def staff_edit(request, pk):
                     messages.warning(request, f'Không thể xóa ảnh cũ: {str(e)}')
                 
                 # Upload ảnh mới và decode face encoding
-                uploaded_urls = []
-                all_encodings = []
+                cv_images = []
                 
                 for idx, image in enumerate(face_images, start=1):
                     ext = os.path.splitext(image.name)[1] or '.jpg'
@@ -418,7 +401,7 @@ def staff_edit(request, pk):
                     image.seek(0)
                     file_content = image.read()
                     
-                    response = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
+                    supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
                         path=file_path,
                         file=file_content,
                         file_options={
@@ -427,47 +410,42 @@ def staff_edit(request, pk):
                         }
                     )
                     
-                    public_url = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).get_public_url(file_path)
-                    uploaded_urls.append(public_url)
-                    
-                    # Decode face encoding
+                    # Decode image for face processing
                     image.seek(0)
                     img_array = np.frombuffer(image.read(), np.uint8)
                     img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
                     if img is not None:
-                        # Resize ảnh lớn hơn để giữ chi tiết
-                        max_dimension = 1000
-                        height, width = img.shape[:2]
-                        if max(height, width) > max_dimension:
-                            scale = max_dimension / max(height, width)
-                            img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
-                        
-                        # Histogram equalization để chuẩn hóa ánh sáng
-                        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-                        lab[:,:,0] = cv2.equalizeHist(lab[:,:,0])
-                        img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
-                        
-                        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                        
-                        # Phát hiện khuôn mặt với HOG
-                        face_locations = face_recognition.face_locations(rgb_img, number_of_times_to_upsample=1, model="hog")
-                        
-                        # Mã hóa khuôn mặt với num_jitters=5 cho độ chính xác cao
-                        if face_locations:
-                            face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=5)
-                            if face_encodings:
-                                all_encodings.append(face_encodings[0].tolist())
+                        cv_images.append(img)
                 
                 # Cập nhật avatar path
                 staff.avatar = f"avatars/{username} (1){os.path.splitext(face_images[0].name)[1] or '.jpg'}"
                 
-                # Lưu face encoding (trung bình nếu có nhiều ảnh)
-                if all_encodings:
-                    avg_encoding = np.mean(all_encodings, axis=0).tolist()
-                    staff.set_encoding(np.array(avg_encoding))
-                    messages.success(request, f'✅ Đã upload {len(face_images)} ảnh và cập nhật face encoding!')
-                else:
-                    messages.warning(request, f'⚠️ Đã upload {len(face_images)} ảnh nhưng không phát hiện khuôn mặt!')
+                # === CNN Pipeline: Detect → Align → Augment → Embed ===
+                if cv_images:
+                    from attendance.services.face_service import FaceService
+                    from attendance.models import FaceEmbedding
+                    import numpy as np
+                    
+                    face_service = FaceService()
+                    result = face_service.register_multiple_images(cv_images)
+                    
+                    if result['success']:
+                        # Lưu embedding trung bình vào User (backward compatible)
+                        staff.set_encoding(result['embedding'])
+                        
+                        # Xóa embeddings cũ và lưu mới vào FaceEmbedding table
+                        FaceEmbedding.objects.filter(user=staff).delete()
+                        for i, emb in enumerate(result['all_embeddings']):
+                            fe = FaceEmbedding(
+                                user=staff,
+                                source='original' if i == 0 else 'augmented',
+                            )
+                            fe.set_embedding(np.array(emb))
+                            fe.save()
+                        
+                        messages.success(request, f'✅ Đã upload {len(face_images)} ảnh và cập nhật {len(result["all_embeddings"])} face embeddings (CNN 512D)!')
+                    else:
+                        messages.warning(request, f'⚠️ {result["error"]}')
                     
             except Exception as e:
                 messages.warning(request, f'Upload ảnh thất bại: {str(e)}')
@@ -635,10 +613,9 @@ def kiosk_checkin(request):
             return render(request, 'attendance/kiosk.html')
         
         try:
-            import face_recognition
             import cv2
             import numpy as np
-            from datetime import datetime
+            from attendance.services.face_service import FaceService
             
             # Đọc ảnh upload
             img_array = np.frombuffer(uploaded_image.read(), np.uint8)
@@ -648,72 +625,17 @@ def kiosk_checkin(request):
                 messages.error(request, '❌ Không thể đọc ảnh! Vui lòng thử lại.')
                 return render(request, 'attendance/kiosk.html')
             
-            # Histogram equalization để chuẩn hóa ánh sáng (giống lúc đăng ký)
-            lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-            lab[:,:,0] = cv2.equalizeHist(lab[:,:,0])
-            img = cv2.cvtColor(lab, cv2.COLOR_LAB2BGR)
+            # === CNN Pipeline: Detect (MTCNN) → Align → CLAHE → Embed (512D) → SVM/pgvector ===
+            face_service = FaceService()
+            result = face_service.identify_face(img)
             
-            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
-            # Tìm khuôn mặt trong ảnh - thử nhiều phương pháp
-            face_locations = []
-            
-            # Phương pháp 1: HOG với upsampling (nhanh)
-            face_locations = face_recognition.face_locations(rgb_img, number_of_times_to_upsample=2, model="hog")
-            
-            # Phương pháp 2: Nếu không tìm thấy, thử CNN (chính xác hơn)
-            if not face_locations:
-                try:
-                    face_locations = face_recognition.face_locations(rgb_img, model="cnn")
-                except Exception:
-                    pass  # CNN có thể không khả dụng
-            
-            # Phương pháp 3: Resize ảnh lớn hơn và thử lại
-            if not face_locations:
-                scale = 2
-                large_img = cv2.resize(rgb_img, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-                face_locations = face_recognition.face_locations(large_img, model="hog")
-                # Điều chỉnh lại tọa độ
-                face_locations = [(int(top/scale), int(right/scale), int(bottom/scale), int(left/scale)) 
-                                  for top, right, bottom, left in face_locations]
-            
-            if not face_locations:
-                messages.error(request, '❌ Không phát hiện khuôn mặt! Vui lòng đảm bảo khuôn mặt rõ ràng, đủ sáng và chụp lại.')
+            if not result['success']:
+                messages.error(request, f'❌ {result["error"]}')
                 return render(request, 'attendance/kiosk.html')
             
-            # Mã hóa khuôn mặt với num_jitters=5 để tăng độ chính xác
-            # num_jitters: re-sample và lấy trung bình, cao hơn = chính xác hơn nhưng chậm hơn
-            face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=5)
-            
-            if not face_encodings:
-                messages.error(request, '❌ Không thể mã hóa khuôn mặt! Vui lòng thử lại.')
-                return render(request, 'attendance/kiosk.html')
-            
-            unknown_encoding = face_encodings[0]
-            
-            # So sánh với tất cả nhân viên trong database
-            staff_members = User.objects.filter(role=User.Role.STAFF).exclude(face_encoding_text__isnull=True)
-            
-            best_match = None
-            best_distance = 0.50  # Ngưỡng cho phép > 60% confidence
-            # Khoảng cách càng nhỏ = match càng chính xác
-            # 0.40 = ~75%, 0.45 = ~70%, 0.50 = ~60%
-            
-            for staff in staff_members:
-                known_encoding = staff.get_encoding()
-                if known_encoding is not None:
-                    # Tính khoảng cách
-                    distance = face_recognition.face_distance([known_encoding], unknown_encoding)[0]
-                    
-                    if distance < best_distance:
-                        best_distance = distance
-                        best_match = staff
-            
-            # Kiểm tra độ chính xác tối thiểu
-            # Nếu best_match is None, nghĩa là không có ai match đủ tốt (distance > 0.38)
-            if best_match is None:
-                messages.error(request, '❌ Không nhận diện được! Khuôn mặt không khớp với bất kỳ nhân viên nào trong hệ thống.')
-                return render(request, 'attendance/kiosk.html')
+            # Lấy thông tin nhân viên từ kết quả nhận diện
+            best_match = User.objects.get(id=result['user_id'])
+            confidence = result['confidence']
             
             # Tìm thấy nhân viên - Kiểm tra ca làm việc
             today = timezone.now().date()
@@ -752,7 +674,6 @@ def kiosk_checkin(request):
                         f'Bạn có thể chấm công từ {allowed_start.strftime("%H:%M")}.'
                     )
                     # Vẫn trả về success view để hiện thông tin nhân viên + thông báo lỗi
-                    confidence = round((1 - best_distance) * 100, 1)
                     context = {
                         'success': True,
                         'user': best_match,
@@ -774,11 +695,6 @@ def kiosk_checkin(request):
                 
                 messages.success(request, f'✅ Chấm công thành công! Xin chào {best_match.get_full_name()} - {log.get_status_display()}')
             
-            # Tính độ chính xác đơn giản và trực quan
-            # Dùng công thức gốc: (1 - distance) * 100
-            # Với threshold 0.50, confidence tối thiểu là 50%
-            confidence = round((1 - best_distance) * 100, 1)
-            
             context = {
                 'success': True,
                 'user': best_match,
@@ -786,11 +702,139 @@ def kiosk_checkin(request):
             }
             return render(request, 'attendance/kiosk.html', context)
                 
+        except User.DoesNotExist:
+            messages.error(request, '❌ Không tìm thấy nhân viên trong hệ thống!')
+            return render(request, 'attendance/kiosk.html')
         except Exception as e:
             messages.error(request, f'❌ Lỗi: {str(e)}')
             return render(request, 'attendance/kiosk.html')
     
     return render(request, 'attendance/kiosk.html')
+
+
+# ==================== ASYNC KIOSK API ====================
+
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+import base64
+
+
+@csrf_exempt
+def kiosk_checkin_async(request):
+    """
+    AJAX endpoint for async face check-in.
+    Dispatches the CNN pipeline to Celery and returns task_id instantly.
+    Falls back to synchronous processing if Celery/Redis unavailable.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    # Get base64 image from AJAX request
+    try:
+        body = json.loads(request.body)
+        image_data = body.get('image')
+    except (json.JSONDecodeError, AttributeError):
+        image_data = None
+    
+    if not image_data:
+        return JsonResponse({'success': False, 'error': 'Không có dữ liệu ảnh!'})
+    
+    # Strip data URL prefix if present (data:image/jpeg;base64,...)
+    if ',' in image_data:
+        image_data = image_data.split(',', 1)[1]
+    
+    # Try async (Celery) first, fall back to sync
+    try:
+        from attendance.tasks import identify_face_task
+        task = identify_face_task.delay(image_data)
+        return JsonResponse({
+            'success': True,
+            'task_id': task.id,
+            'mode': 'async',
+        })
+    except Exception as e:
+        # Celery/Redis unavailable — run synchronously
+        import logging
+        logging.getLogger(__name__).warning(f"Celery unavailable, running sync: {e}")
+        
+        try:
+            import cv2
+            import numpy as np
+            from attendance.services.face_service import FaceService
+            
+            img_bytes = base64.b64decode(image_data)
+            img_array = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                return JsonResponse({'success': False, 'error': 'Không thể đọc ảnh!'})
+            
+            face_service = FaceService()
+            result = face_service.identify_face(img)
+            
+            if not result['success']:
+                return JsonResponse({
+                    'success': False,
+                    'error': result['error'],
+                    'mode': 'sync',
+                })
+            
+            user = User.objects.get(id=result['user_id'])
+            today = timezone.now().date()
+            
+            # Check existing log
+            existing_log = AttendanceLog.objects.filter(
+                user=user, timestamp__date=today
+            ).first()
+            
+            if existing_log:
+                checkin_status = 'already_checked'
+                msg = f'{user.get_full_name()} đã chấm công hôm nay lúc {existing_log.timestamp.strftime("%H:%M")}!'
+            else:
+                log = AttendanceLog.objects.create(user=user)
+                checkin_status = 'success'
+                msg = f'Chấm công thành công! Xin chào {user.get_full_name()} - {log.get_status_display()}'
+            
+            return JsonResponse({
+                'success': True,
+                'mode': 'sync',
+                'result': {
+                    'success': True,
+                    'user_id': user.id,
+                    'user_full_name': str(user),
+                    'first_initial': (user.first_name[:1].upper() if user.first_name else '?'),
+                    'confidence': result['confidence'],
+                    'avatar_url': user.get_avatar_url() or '',
+                    'shift_name': user.work_shift.name if user.work_shift else '',
+                    'checkin_status': checkin_status,
+                    'message': msg,
+                }
+            })
+        except Exception as sync_e:
+            return JsonResponse({'success': False, 'error': str(sync_e), 'mode': 'sync'})
+
+
+def check_result(request, task_id):
+    """Poll Celery task result by task_id."""
+    try:
+        from celery.result import AsyncResult
+        result = AsyncResult(task_id)
+        
+        if result.ready():
+            task_result = result.get(timeout=1)
+            return JsonResponse({
+                'status': 'done',
+                'result': task_result,
+            })
+        elif result.state == 'STARTED':
+            return JsonResponse({'status': 'processing'})
+        elif result.state == 'PENDING':
+            return JsonResponse({'status': 'pending'})
+        else:
+            return JsonResponse({'status': 'unknown', 'state': result.state})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)})
 
 
 # ==================== BÁO CÁO NHẬN DIỆN SAI ====================
@@ -907,9 +951,10 @@ def face_register(request):
             return render(request, 'attendance/face_register.html')
         
         try:
-            import face_recognition
             import cv2
             import numpy as np
+            from attendance.services.face_service import FaceService
+            from attendance.models import FaceEmbedding
             
             # Đọc ảnh upload
             img_array = np.frombuffer(uploaded_image.read(), np.uint8)
@@ -919,33 +964,29 @@ def face_register(request):
                 messages.error(request, '❌ Không thể đọc ảnh!')
                 return render(request, 'attendance/face_register.html')
             
-            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            # === CNN Pipeline: Detect (MTCNN) → Align → CLAHE → Augment → Embed (512D) ===
+            face_service = FaceService()
+            result = face_service.register_face(img)
             
-            # Tìm khuôn mặt - thử nhiều phương pháp
-            face_locations = face_recognition.face_locations(rgb_img, number_of_times_to_upsample=2, model="hog")
-            
-            if not face_locations:
-                try:
-                    face_locations = face_recognition.face_locations(rgb_img, model="cnn")
-                except Exception:
-                    pass
-            
-            if not face_locations:
-                messages.error(request, '❌ Không phát hiện khuôn mặt! Vui lòng đảm bảo mặt rõ ràng.')
+            if not result['success']:
+                messages.error(request, f'❌ {result["error"]}')
                 return render(request, 'attendance/face_register.html')
             
-            # Mã hóa khuôn mặt
-            face_encodings = face_recognition.face_encodings(rgb_img, face_locations, num_jitters=2)
-            
-            if not face_encodings:
-                messages.error(request, '❌ Không thể mã hóa khuôn mặt!')
-                return render(request, 'attendance/face_register.html')
-            
-            # Lưu encoding vào user hiện tại
-            request.user.set_encoding(face_encodings[0])
+            # Lưu encoding vào user hiện tại (backward compatible)
+            request.user.set_encoding(result['embedding'])
             request.user.save()
             
-            messages.success(request, f'✅ Đã đăng ký khuôn mặt thành công cho {request.user.get_full_name() or request.user.username}!')
+            # Lưu vào FaceEmbedding table (pgvector)
+            FaceEmbedding.objects.filter(user=request.user).delete()
+            for i, emb in enumerate(result['all_embeddings']):
+                fe = FaceEmbedding(
+                    user=request.user,
+                    source='registration' if i == 0 else 'augmented',
+                )
+                fe.set_embedding(np.array(emb))
+                fe.save()
+            
+            messages.success(request, f'✅ Đã đăng ký khuôn mặt thành công cho {request.user.get_full_name() or request.user.username}! ({len(result["all_embeddings"])} embeddings CNN 512D)')
             return render(request, 'attendance/face_register.html', {'success': True})
             
         except Exception as e:

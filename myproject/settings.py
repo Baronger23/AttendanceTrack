@@ -30,19 +30,34 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-m9tmgt92g^mnqk%*)md-fm0*4)
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',                      # ASGI server (must be first)
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',                    # Django Channels (WebSocket)
     'attendance',
 ]
+
+# ASGI Configuration (Django Channels)
+ASGI_APPLICATION = 'myproject.asgi.application'
+
+# Channel Layers (Redis-backed for production, in-memory fallback)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [os.getenv('REDIS_URL', 'redis://localhost:6379/0')],
+        },
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -154,3 +169,22 @@ SUPABASE_BUCKET_NAME = os.getenv('SUPABASE_BUCKET_NAME', 'Timekeeping')
 # Media files configuration (using local storage)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# AI Face Recognition Configuration
+AI_MODELS_DIR = BASE_DIR / 'models'
+AI_FACE_EMBEDDING_DIM = 512           # InceptionResnetV1 output dimension
+AI_FACE_CONFIDENCE_THRESHOLD = 55.0   # Minimum confidence (%) for identification
+AI_FACE_AUGMENTATION_COUNT = 20       # Number of augmented variants per registration
+AI_CLASSIFIER_MIN_CLASSES = 2         # Minimum people needed to train SVM
+
+# Celery Configuration (async task processing)
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 30           # Hard limit: 30 seconds
+CELERY_TASK_SOFT_TIME_LIMIT = 25      # Soft limit: 25 seconds
+

@@ -4,6 +4,12 @@ import json
 import numpy as np
 from datetime import datetime, time
 
+try:
+    from pgvector.django import VectorField, HnswIndex
+    PGVECTOR_AVAILABLE = True
+except ImportError:
+    PGVECTOR_AVAILABLE = False
+
 # 1. BẢNG CA LÀM VIỆC (Đưa lên trên để User tham chiếu tới)
 class WorkShift(models.Model):
     name = models.CharField(max_length=100, default="Ca hành chính")
@@ -45,6 +51,7 @@ class User(AbstractUser):
     avatar = models.CharField(max_length=500, null=True, blank=True, verbose_name='Ảnh đại diện')
     
     # --- Xử lý Vector khuôn mặt ---
+    # Backward compatible: lưu trữ encoding dạng JSON text (128D hoặc 512D)
     face_encoding_text = models.TextField(null=True, blank=True)
 
     def get_avatar_url(self):
@@ -55,10 +62,12 @@ class User(AbstractUser):
         return None
 
     def set_encoding(self, encoding_array):
+        """Lưu face encoding (hỗ trợ cả 128D và 512D)"""
         if encoding_array is not None:
             self.face_encoding_text = json.dumps(encoding_array.tolist())
 
     def get_encoding(self):
+        """Lấy face encoding dạng numpy array"""
         if self.face_encoding_text:
             try:
                 data = json.loads(self.face_encoding_text)
@@ -131,3 +140,65 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"{self.get_type_display()}: {self.title}"
+
+
+# 5. BẢNG LƯU TRỮ FACE EMBEDDING (pgvector)
+class FaceEmbedding(models.Model):
+    """
+    Lưu trữ face embeddings dạng vector 512D sử dụng pgvector.
+    Mỗi nhân viên có thể có nhiều embeddings (gốc + augmented).
+    Sử dụng HNSW index cho tìm kiếm nhanh (miligiây thay vì giây).
+    """
+    class Source(models.TextChoices):
+        ORIGINAL = "original", "Ảnh gốc"
+        AUGMENTED = "augmented", "Ảnh tăng cường"
+        REGISTRATION = "registration", "Đăng ký webcam"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='face_embeddings')
+    
+    # Vector 512D — sử dụng pgvector nếu có, fallback JSON text nếu không
+    if PGVECTOR_AVAILABLE:
+        embedding = VectorField(dimensions=512)
+    else:
+        embedding_json = models.TextField(default='[]')
+    
+    source = models.CharField(
+        max_length=20, 
+        choices=Source.choices, 
+        default=Source.ORIGINAL
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Face Embedding'
+        verbose_name_plural = 'Face Embeddings'
+        if PGVECTOR_AVAILABLE:
+            indexes = [
+                HnswIndex(
+                    name='face_emb_hnsw_idx',
+                    fields=['embedding'],
+                    m=16,
+                    ef_construction=64,
+                    opclasses=['vector_cosine_ops'],
+                ),
+            ]
+
+    def set_embedding(self, embedding_array):
+        """Lưu embedding từ numpy array"""
+        if PGVECTOR_AVAILABLE:
+            self.embedding = embedding_array.tolist()
+        else:
+            self.embedding_json = json.dumps(embedding_array.tolist())
+
+    def get_embedding(self):
+        """Lấy embedding dạng numpy array"""
+        if PGVECTOR_AVAILABLE:
+            return np.array(self.embedding)
+        else:
+            try:
+                return np.array(json.loads(self.embedding_json))
+            except:
+                return None
+
+    def __str__(self):
+        return f"Embedding: {self.user.username} ({self.get_source_display()})"
