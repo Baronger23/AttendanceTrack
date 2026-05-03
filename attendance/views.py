@@ -734,8 +734,10 @@ def kiosk_checkin_async(request):
     try:
         body = json.loads(request.body)
         image_data = body.get('image')
+        previous_image_data = body.get('previous_image')
     except (json.JSONDecodeError, AttributeError):
         image_data = None
+        previous_image_data = None
     
     if not image_data:
         return JsonResponse({'success': False, 'error': 'Không có dữ liệu ảnh!'})
@@ -743,11 +745,14 @@ def kiosk_checkin_async(request):
     # Strip data URL prefix if present (data:image/jpeg;base64,...)
     if ',' in image_data:
         image_data = image_data.split(',', 1)[1]
+        
+    if previous_image_data and ',' in previous_image_data:
+        previous_image_data = previous_image_data.split(',', 1)[1]
     
     # Try async (Celery) first, fall back to sync
     try:
         from attendance.tasks import identify_face_task
-        task = identify_face_task.delay(image_data)
+        task = identify_face_task.delay(image_data, previous_image_data)
         return JsonResponse({
             'success': True,
             'task_id': task.id,
@@ -771,12 +776,30 @@ def kiosk_checkin_async(request):
                 return JsonResponse({'success': False, 'error': 'Không thể đọc ảnh!'})
             
             face_service = FaceService()
+            
+            # [ANTI-SPOOFING] Liveness Check if previous frame is provided
+            if previous_image_data:
+                prev_img_bytes = base64.b64decode(previous_image_data)
+                prev_img_array = np.frombuffer(prev_img_bytes, np.uint8)
+                prev_img = cv2.imdecode(prev_img_array, cv2.IMREAD_COLOR)
+                
+                if prev_img is not None:
+                    is_live = face_service.verify_liveness(img, prev_img)
+                    if not is_live:
+                        return JsonResponse({
+                            'success': False, 
+                            'error': 'Phát hiện ảnh tĩnh/giả mạo!',
+                            'feedback_ui': 'Cảnh báo: Phát hiện khuôn mặt không có vi biểu cảm thật. Vui lòng thử lại.',
+                            'mode': 'sync'
+                        })
+            
             result = face_service.identify_face(img)
             
             if not result['success']:
                 return JsonResponse({
                     'success': False,
-                    'error': result['error'],
+                    'error': result.get('error', 'Lỗi không xác định'),
+                    'feedback_ui': result.get('feedback_ui', 'Lỗi hệ thống, vui lòng thử lại.'),
                     'mode': 'sync',
                 })
             

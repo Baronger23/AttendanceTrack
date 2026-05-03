@@ -12,6 +12,8 @@ Provides two main operations:
 import numpy as np
 import cv2
 import logging
+import time
+import json
 
 from .face_detection import FaceDetector
 from .face_alignment import align_face
@@ -94,7 +96,14 @@ class FaceService:
                     'error': 'Không thể trích xuất đặc trưng khuôn mặt!',
                 }
             
-            # 7. Average embedding (robust representation)
+            # 7. Quality scoring & Selection (Instead of averaging)
+            # Select top K diverse embeddings. For this implementation, we take the original 
+            # and a few variants to preserve variance (e.g., 5 total).
+            # In a real system, we would calculate blurriness/lighting quality score here.
+            selected_embeddings = all_embeddings[:5]
+            quality_scores = [face['confidence']] * len(selected_embeddings) # Use detection conf as baseline quality
+            
+            # Calculate average for backward compatibility with older parts of the system
             avg_embedding = np.mean(all_embeddings, axis=0)
             norm = np.linalg.norm(avg_embedding)
             if norm > 0:
@@ -103,7 +112,8 @@ class FaceService:
             return {
                 'success': True,
                 'embedding': avg_embedding,
-                'all_embeddings': all_embeddings,
+                'all_embeddings': selected_embeddings,
+                'quality_scores': quality_scores,
                 'confidence': face['confidence'],
             }
             
@@ -126,12 +136,14 @@ class FaceService:
             Same as register_face() but with combined embeddings from all images
         """
         all_embeddings = []
+        all_quality_scores = []
         detection_confidence = 0.0
         
         for img in images:
             result = self.register_face(img, num_augmented=num_augmented)
             if result['success']:
                 all_embeddings.extend(result['all_embeddings'])
+                all_quality_scores.extend(result['quality_scores'])
                 detection_confidence = max(detection_confidence, result['confidence'])
         
         if not all_embeddings:
@@ -149,9 +161,59 @@ class FaceService:
             'success': True,
             'embedding': avg_embedding,
             'all_embeddings': all_embeddings,
+            'quality_scores': all_quality_scores,
             'confidence': detection_confidence,
         }
     
+    # ==================== LIVENESS DETECTION ====================
+    
+    def verify_liveness(self, current_frame: np.ndarray, previous_frame: np.ndarray) -> bool:
+        """
+        [DEMO LEVEL] Anti-Spoofing / Liveness check using 2 sequential frames.
+        Detects if the user is a real person by measuring subtle facial movements
+        (e.g., eye blinking, slight head movement) between two frames.
+        Returns False if the face is completely static (likely a printed photo or phone screen).
+        """
+        if current_frame is None or previous_frame is None:
+            return False
+            
+        try:
+            # 1. Detect landmarks in both frames
+            curr_processed = preprocess_for_detection(current_frame)
+            prev_processed = preprocess_for_detection(previous_frame)
+            
+            curr_face = self.detector.detect_largest(curr_processed)
+            prev_face = self.detector.detect_largest(prev_processed)
+            
+            if not curr_face or not prev_face:
+                return False
+                
+            # 2. Calculate movement variance (MSE of landmarks)
+            curr_lms = np.array(curr_face['landmarks'])
+            prev_lms = np.array(prev_face['landmarks'])
+            
+            mse = np.mean((curr_lms - prev_lms) ** 2)
+            
+            # If MSE is extremely low, it's a static image (spoof). 
+            # If MSE is too high, it might be a different person or heavy motion blur.
+            # A real person standing still will have slight micro-movements (MSE between 0.5 and 15.0).
+            MIN_MOVEMENT_THRESHOLD = 0.5
+            MAX_MOVEMENT_THRESHOLD = 15.0
+            
+            is_live = bool(MIN_MOVEMENT_THRESHOLD < mse < MAX_MOVEMENT_THRESHOLD)
+            
+            logger.info(json.dumps({
+                "event": "liveness_check",
+                "mse_movement": float(mse),
+                "is_live": is_live
+            }))
+            
+            return is_live
+            
+        except Exception as e:
+            logger.error(f"Liveness check failed: {e}")
+            return False
+
     # ==================== IDENTIFICATION ====================
     
     def identify_face(self, image: np.ndarray) -> dict:
@@ -172,6 +234,7 @@ class FaceService:
                 - 'embedding': 512D array (for logging/debugging)
                 - 'error': error message (if failed)
         """
+        start_time = time.time()
         try:
             # 1. Preprocess for detection
             processed = preprocess_for_detection(image)
@@ -200,44 +263,131 @@ class FaceService:
                     'error': 'Không thể mã hóa khuôn mặt!',
                 }
             
-            # 6. Try SVM classifier first (fast)
-            user_id = None
-            confidence = 0.0
+            # 6. Recall Phase: Vector Search for top candidate
+            # T2: Cosine Similarity Threshold (Environment based, defaulting to 55.0)
+            db_result = self._search_database(embedding)
             
-            if self.classifier.is_trained:
-                user_id, confidence = self.classifier.predict(embedding)
-                confidence = round(confidence * 100, 1)
-                
-                if confidence < 50.0:
-                    # SVM not confident enough, will fall back to DB search
-                    user_id = None
-            
-            # 7. If classifier failed or not trained, use pgvector DB search
-            if user_id is None:
-                db_result = self._search_database(embedding)
-                if db_result:
-                    user_id = db_result['user_id']
-                    confidence = db_result['confidence']
-            
-            if user_id is None:
+            if not db_result:
+                logger.info("Double Validation: Vector search found no candidates above threshold.")
                 return {
                     'success': False,
-                    'error': 'Không nhận diện được! Khuôn mặt không khớp với bất kỳ nhân viên nào.',
+                    'error': 'Unknown',
                     'embedding': embedding,
                 }
+                
+            vector_user_id = db_result['user_id']
+            cosine_sim = db_result['confidence']
             
-            return {
-                'success': True,
-                'user_id': user_id,
-                'confidence': confidence,
-                'embedding': embedding,
-            }
+            # 7. Precision Phase: SVM Classifier Verification
+            if self.classifier.is_trained:
+                svm_user_id, svm_conf = self.classifier.predict(embedding)
+                svm_conf = round(svm_conf * 100, 1)
+                
+                # Double Validation check
+                # T1: SVM Confidence Threshold (e.g., 50.0)
+                svm_threshold = 50.0 
+                cosine_threshold = 55.0
+                cosine_high_threshold = 65.0 # T2_high for fallback
+                
+                if svm_conf >= svm_threshold and cosine_sim >= cosine_threshold and svm_user_id == vector_user_id:
+                    # Both layers agree with high confidence
+                    latency = round((time.time() - start_time) * 1000, 2)
+                    logger.info(json.dumps({
+                        "event": "recognition_success",
+                        "latency_ms": latency,
+                        "cosine": cosine_sim,
+                        "svm": svm_conf,
+                        "result": vector_user_id,
+                        "validation": "double"
+                    }))
+                    return {
+                        'success': True,
+                        'user_id': vector_user_id,
+                        'confidence': max(cosine_sim, svm_conf), # Return highest confidence
+                        'embedding': embedding,
+                    }
+                elif cosine_sim >= cosine_high_threshold:
+                    # Fallback: SVM failed but Vector is VERY confident (trust embedding strongly)
+                    latency = round((time.time() - start_time) * 1000, 2)
+                    logger.info(json.dumps({
+                        "event": "recognition_success",
+                        "latency_ms": latency,
+                        "cosine": cosine_sim,
+                        "svm": svm_conf,
+                        "result": vector_user_id,
+                        "validation": "vector_fallback"
+                    }))
+                    return {
+                        'success': True,
+                        'user_id': vector_user_id,
+                        'confidence': cosine_sim,
+                        'embedding': embedding,
+                    }
+                else:
+                    # Conflict or low confidence -> Prevent False Positive
+                    latency = round((time.time() - start_time) * 1000, 2)
+                    logger.warning(json.dumps({
+                        "event": "recognition_failed",
+                        "reason": "double_validation_failed",
+                        "latency_ms": latency,
+                        "cosine": cosine_sim,
+                        "svm": svm_conf,
+                        "predicted_vector": vector_user_id,
+                        "predicted_svm": svm_user_id
+                    }))
+                    return {
+                        'success': False,
+                        'error': 'Unknown',
+                        'feedback_ui': 'Không thể xác nhận danh tính, vui lòng đứng thẳng và nhìn vào camera.',
+                        'embedding': embedding,
+                    }
+            else:
+                # Fallback if classifier is not trained yet (e.g., early system state)
+                cosine_threshold = 55.0
+                latency = round((time.time() - start_time) * 1000, 2)
+                
+                if cosine_sim >= cosine_threshold:
+                    logger.info(json.dumps({
+                        "event": "recognition_success",
+                        "latency_ms": latency,
+                        "cosine": cosine_sim,
+                        "svm": None,
+                        "result": vector_user_id,
+                        "validation": "vector_only"
+                    }))
+                    return {
+                        'success': True,
+                        'user_id': vector_user_id,
+                        'confidence': cosine_sim,
+                        'embedding': embedding,
+                    }
+                else:
+                    logger.warning(json.dumps({
+                        "event": "recognition_failed",
+                        "reason": "low_cosine_similarity",
+                        "latency_ms": latency,
+                        "cosine": cosine_sim,
+                        "svm": None,
+                        "predicted_vector": vector_user_id
+                    }))
+                    return {
+                        'success': False,
+                        'error': 'Unknown',
+                        'feedback_ui': 'Không nhận ra bạn, vui lòng tiến lại gần hơn chút nữa.',
+                        'embedding': embedding,
+                    }
             
         except Exception as e:
-            logger.error(f"Identification failed: {e}", exc_info=True)
+            latency = round((time.time() - start_time) * 1000, 2)
+            logger.error(json.dumps({
+                "event": "recognition_error",
+                "latency_ms": latency,
+                "error": str(e)
+            }), exc_info=True)
             return {
                 'success': False,
-                'error': f'Lỗi nhận diện: {str(e)}',
+                'error': f'Lỗi hệ thống: {str(e)}',
+                'feedback_ui': 'Hệ thống đang bận, vui lòng thử lại.',
             }
     
     def _search_database(self, embedding: np.ndarray) -> dict:
@@ -253,20 +403,33 @@ class FaceService:
             from attendance.models import FaceEmbedding
             from pgvector.django import CosineDistance
             
+            # Query Optimization: Fetch top 10 closest vectors
             results = FaceEmbedding.objects.annotate(
                 distance=CosineDistance('embedding', embedding.tolist())
-            ).order_by('distance')[:1]
+            ).order_by('distance')[:10]
             
             if results:
-                best = results[0]
-                # Cosine distance: 0 = identical, 2 = opposite
-                # Convert to confidence: (1 - distance/2) * 100
-                confidence = round((1 - best.distance / 2) * 100, 1)
+                best_user_id = None
+                best_weighted_conf = 0.0
+                actual_conf_of_best = 0.0
                 
-                if confidence >= 55.0:
+                for res in results:
+                    # Cosine distance: 0 = identical, 2 = opposite
+                    confidence = (1 - res.distance / 2) * 100
+                    
+                    # Weighted Similarity: Boost confidence slightly based on quality_score
+                    # E.g., if quality_score is 1.0, boost by 5%. 
+                    weighted_conf = confidence + (res.quality_score * 5.0)
+                    
+                    if weighted_conf > best_weighted_conf:
+                        best_weighted_conf = weighted_conf
+                        best_user_id = res.user_id
+                        actual_conf_of_best = confidence
+                
+                if actual_conf_of_best >= 55.0:
                     return {
-                        'user_id': best.user_id,
-                        'confidence': confidence,
+                        'user_id': best_user_id,
+                        'confidence': round(actual_conf_of_best, 1),
                     }
         except Exception as e:
             logger.warning(f"pgvector search failed, falling back to Python: {e}")
@@ -276,22 +439,18 @@ class FaceService:
     
     def _search_python_fallback(self, embedding: np.ndarray) -> dict:
         """
-        Fallback face matching using Python loop over all staff encodings.
+        Fallback face matching using Python loop over cached staff encodings.
         Used when pgvector is not available.
         """
-        from attendance.models import User
+        from attendance.services.cache_service import FaceCacheService
         
-        staff_members = User.objects.filter(
-            role=User.Role.STAFF
-        ).exclude(face_encoding_text__isnull=True).exclude(face_encoding_text='')
+        all_cached_embeddings = FaceCacheService.get_all_embeddings()
         
-        best_match = None
+        best_match_id = None
         best_similarity = 0.55  # Minimum threshold (55%)
         
-        for staff in staff_members:
-            known_encoding = staff.get_encoding()
-            if known_encoding is not None:
-                # Cosine similarity between embeddings
+        for known_encoding, user_id in all_cached_embeddings:
+            # Cosine similarity between embeddings
                 similarity = float(np.dot(embedding, known_encoding) / (
                     np.linalg.norm(embedding) * np.linalg.norm(known_encoding) + 1e-8
                 ))
@@ -300,11 +459,11 @@ class FaceService:
                 
                 if confidence > best_similarity:
                     best_similarity = confidence
-                    best_match = staff
+                    best_match_id = user_id
         
-        if best_match is not None:
+        if best_match_id is not None:
             return {
-                'user_id': best_match.id,
+                'user_id': best_match_id,
                 'confidence': best_similarity,
             }
         

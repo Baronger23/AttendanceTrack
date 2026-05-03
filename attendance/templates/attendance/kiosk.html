@@ -609,47 +609,59 @@
                 processingPanel.style.display = 'block';
                 setStep(1);
 
-                // Step 1: Detected (done by face-api.js)
-                await delay(200);
-                setStep(2);
+                // Helper to capture a frame from the video
+                function captureFrame() {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    canvas.getContext('2d').drawImage(video, 0, 0);
+                    
+                    if (lastBox && faceApiReady) {
+                        const margin = 80;
+                        const cx = Math.max(0, Math.floor(lastBox.x - margin));
+                        const cy = Math.max(0, Math.floor(lastBox.y - margin));
+                        const cw = Math.min(canvas.width - cx, Math.floor(lastBox.width + margin * 2));
+                        const ch = Math.min(canvas.height - cy, Math.floor(lastBox.height + margin * 2));
 
-                // Capture & compress
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                canvas.getContext('2d').drawImage(video, 0, 0);
-
-                // Crop face region if detected (smaller upload)
-                let imageData;
-                if (lastBox && faceApiReady) {
-                    const margin = 80;
-                    const cx = Math.max(0, Math.floor(lastBox.x - margin));
-                    const cy = Math.max(0, Math.floor(lastBox.y - margin));
-                    const cw = Math.min(canvas.width - cx, Math.floor(lastBox.width + margin * 2));
-                    const ch = Math.min(canvas.height - cy, Math.floor(lastBox.height + margin * 2));
-
-                    const cropCanvas = document.createElement('canvas');
-                    cropCanvas.width = cw;
-                    cropCanvas.height = ch;
-                    cropCanvas.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
-                    imageData = cropCanvas.toDataURL('image/jpeg', 0.8);
-                } else {
-                    imageData = canvas.toDataURL('image/jpeg', 0.8);
+                        const cropCanvas = document.createElement('canvas');
+                        cropCanvas.width = cw;
+                        cropCanvas.height = ch;
+                        cropCanvas.getContext('2d').drawImage(canvas, cx, cy, cw, ch, 0, 0, cw, ch);
+                        return cropCanvas.toDataURL('image/jpeg', 0.8);
+                    } else {
+                        return canvas.toDataURL('image/jpeg', 0.8);
+                    }
                 }
 
+                // [ANTI-SPOOFING] Capture 2 frames separated by 400ms to check liveness
+                let previousImageData = captureFrame();
+                
+                // Wait for the user to potentially move slightly
+                await delay(400);
+                setStep(2);
+                
+                let imageData = captureFrame();
+                
                 stopCamera();
                 setStep(3);
 
                 // Send via WebSocket or AJAX
                 if (wsConnected && ws && ws.readyState === WebSocket.OPEN) {
                     // WebSocket path — server pushes result when done
-                    ws.send(JSON.stringify({ type: 'checkin', image: imageData }));
+                    ws.send(JSON.stringify({ 
+                        type: 'checkin', 
+                        image: imageData,
+                        previous_image: previousImageData 
+                    }));
                 } else {
                     // AJAX + polling fallback
                     try {
                         const response = await fetch(API_CHECKIN, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ image: imageData })
+                            body: JSON.stringify({ 
+                                image: imageData,
+                                previous_image: previousImageData 
+                            })
                         });
                         const data = await response.json();
 

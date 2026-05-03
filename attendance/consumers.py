@@ -21,10 +21,12 @@ class KioskConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         """Accept WebSocket connection and join a unique group."""
         # Generate a unique session group for this connection
+        import re
+        safe_channel_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', self.channel_name)
         self.session_id = self.scope.get('url_route', {}).get('kwargs', {}).get(
-            'session_id', self.channel_name
+            'session_id', safe_channel_name
         )
-        self.group_name = f'kiosk_{self.channel_name}'
+        self.group_name = f'kiosk_{safe_channel_name}'
         
         # Join the group
         await self.channel_layer.group_add(
@@ -66,6 +68,7 @@ class KioskConsumer(AsyncWebsocketConsumer):
     async def handle_checkin(self, data):
         """Dispatch face recognition to Celery worker."""
         image_data = data.get('image', '')
+        previous_image_data = data.get('previous_image', None)
         
         if not image_data:
             await self.send(text_data=json.dumps({
@@ -77,6 +80,9 @@ class KioskConsumer(AsyncWebsocketConsumer):
         # Strip data URL prefix
         if ',' in image_data:
             image_data = image_data.split(',', 1)[1]
+            
+        if previous_image_data and ',' in previous_image_data:
+            previous_image_data = previous_image_data.split(',', 1)[1]
         
         # Send "processing" acknowledgement immediately
         await self.send(text_data=json.dumps({
@@ -88,7 +94,7 @@ class KioskConsumer(AsyncWebsocketConsumer):
         # Dispatch Celery task with this group_name so it can push results back
         try:
             from attendance.tasks import identify_face_task
-            task = identify_face_task.delay(image_data, self.group_name)
+            task = identify_face_task.delay(image_data, previous_image_data, self.group_name)
             
             await self.send(text_data=json.dumps({
                 'type': 'processing',
@@ -99,9 +105,9 @@ class KioskConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             # Celery unavailable — run sync fallback
             logger.warning(f"Celery unavailable: {e}")
-            await self.run_sync_fallback(image_data)
+            await self.run_sync_fallback(image_data, previous_image_data)
     
-    async def run_sync_fallback(self, image_data):
+    async def run_sync_fallback(self, image_data, previous_image_data=None):
         """Synchronous fallback when Celery is unavailable."""
         import base64
         import cv2
@@ -122,6 +128,26 @@ class KioskConsumer(AsyncWebsocketConsumer):
             
             from attendance.services.face_service import FaceService
             face_service = FaceService()
+            
+            # [ANTI-SPOOFING] Liveness Check if previous frame is provided
+            if previous_image_data:
+                prev_img_bytes = base64.b64decode(previous_image_data)
+                prev_img_array = np.frombuffer(prev_img_bytes, np.uint8)
+                prev_img = cv2.imdecode(prev_img_array, cv2.IMREAD_COLOR)
+                
+                if prev_img is not None:
+                    is_live = await sync_to_async(face_service.verify_liveness)(img, prev_img)
+                    if not is_live:
+                        await self.send(text_data=json.dumps({
+                            'type': 'result',
+                            'result': {
+                                'success': False, 
+                                'error': 'Phát hiện ảnh tĩnh/giả mạo!',
+                                'feedback_ui': 'Cảnh báo: Phát hiện khuôn mặt không có vi biểu cảm thật. Vui lòng thử lại.'
+                            },
+                        }))
+                        return
+                        
             result = await sync_to_async(face_service.identify_face)(img)
             
             if not result['success']:

@@ -4,9 +4,13 @@ import json
 import numpy as np
 from datetime import datetime, time
 
+from django.conf import settings
+
 try:
     from pgvector.django import VectorField, HnswIndex
-    PGVECTOR_AVAILABLE = True
+    # Only enable pgvector if we are actually using Postgres
+    _engine = settings.DATABASES['default']['ENGINE']
+    PGVECTOR_AVAILABLE = 'postgresql' in _engine or 'psycopg2' in _engine
 except ImportError:
     PGVECTOR_AVAILABLE = False
 
@@ -167,6 +171,7 @@ class FaceEmbedding(models.Model):
         choices=Source.choices, 
         default=Source.ORIGINAL
     )
+    quality_score = models.FloatField(default=1.0, help_text="Độ rõ nét và chất lượng của khuôn mặt (0.0 - 1.0)")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

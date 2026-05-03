@@ -14,6 +14,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        pgvector.django.VectorExtension(),
         migrations.CreateModel(
             name='FaceEmbedding',
             fields=[

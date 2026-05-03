@@ -41,12 +41,15 @@ def preprocess_for_detection(image: np.ndarray, max_dimension: int = 1000) -> np
     return image
 
 
-def preprocess_for_embedding(aligned_face: np.ndarray) -> np.ndarray:
+def preprocess_for_embedding(aligned_face: np.ndarray, clahe_threshold: float = 90.0) -> np.ndarray:
     """
     Preprocess an aligned face before embedding extraction.
+    Only applies CLAHE if the face is too dark (average brightness < clahe_threshold)
+    to preserve FaceNet features in well-lit conditions.
     
     Args:
         aligned_face: BGR numpy array, typically 112x112
+        clahe_threshold: Brightness threshold below which CLAHE is applied
     
     Returns:
         Preprocessed BGR image ready for embedding model
@@ -54,9 +57,18 @@ def preprocess_for_embedding(aligned_face: np.ndarray) -> np.ndarray:
     if aligned_face is None:
         return None
     
-    # Apply CLAHE for consistent brightness
-    result = apply_clahe(aligned_face)
+    # Calculate average brightness
+    gray = cv2.cvtColor(aligned_face, cv2.COLOR_BGR2GRAY)
+    mean_brightness = np.mean(gray)
     
+    # Apply CLAHE conditionally
+    if mean_brightness < clahe_threshold:
+        logger.debug(f"Applying CLAHE (Brightness: {mean_brightness:.1f} < {clahe_threshold})")
+        result = apply_clahe(aligned_face)
+    else:
+        logger.debug(f"Skipping CLAHE (Brightness: {mean_brightness:.1f} >= {clahe_threshold})")
+        result = aligned_face
+        
     return result
 
 
