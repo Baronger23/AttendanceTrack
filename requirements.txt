@@ -15,6 +15,10 @@ scikit-learn
 scikit-image
 joblib
 opencv-python-headless
+mediapipe==0.10.21
+
+# Property-Based Testing
+hypothesis
 
 # Database Vector Search
 pgvector

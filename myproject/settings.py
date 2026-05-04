@@ -196,3 +196,12 @@ CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30           # Hard limit: 30 seconds
 CELERY_TASK_SOFT_TIME_LIMIT = 25      # Soft limit: 25 seconds
 
+# Hybrid Liveness Detection Thresholds
+LIVENESS_EAR_THRESHOLD = 0.22         # Eye Aspect Ratio threshold for blink detection
+LIVENESS_EAR_AMPLITUDE_MIN = 0.08     # Minimum EAR amplitude to count as a valid blink
+LIVENESS_YAW_RANGE_MIN = 8.0          # Minimum yaw range (degrees) for head movement
+LIVENESS_PITCH_RANGE_MIN = 6.0        # Minimum pitch range (degrees) for head movement
+LIVENESS_TEMPORAL_STD_MIN = 0.005     # Minimum temporal std dev for natural motion
+LIVENESS_TEMPORAL_STD_MAX = 0.08      # Maximum temporal std dev (above = too noisy)
+LIVENESS_TIMEOUT_SECONDS = 8.0        # Maximum seconds allowed for liveness check
+

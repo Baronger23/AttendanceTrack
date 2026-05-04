@@ -36,6 +36,11 @@ class KioskConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         
+        # Initialize stateful LivenessService for this connection
+        from attendance.services.liveness_service import LivenessService
+        self.liveness_service = LivenessService()
+        self.liveness_passed = False
+        
         # Send connection confirmation
         await self.send(text_data=json.dumps({
             'type': 'connected',
@@ -68,33 +73,70 @@ class KioskConsumer(AsyncWebsocketConsumer):
     async def handle_checkin(self, data):
         """Dispatch face recognition to Celery worker."""
         image_data = data.get('image', '')
-        previous_image_data = data.get('previous_image', None)
-        
-        if not image_data:
-            await self.send(text_data=json.dumps({
-                'type': 'error',
-                'error': 'Không có dữ liệu ảnh!',
-            }))
-            return
+        import base64
+        import cv2
+        import numpy as np
+        from asgiref.sync import sync_to_async
         
         # Strip data URL prefix
         if ',' in image_data:
             image_data = image_data.split(',', 1)[1]
             
-        if previous_image_data and ',' in previous_image_data:
-            previous_image_data = previous_image_data.split(',', 1)[1]
+        # 1. Decode image for Liveness Check
+        try:
+            img_bytes = base64.b64decode(image_data)
+            img_array = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+            
+            if img is None:
+                raise ValueError("Invalid image")
+        except Exception as e:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'error': 'Lỗi giải mã ảnh',
+            }))
+            return
+
+        # 2. Perform Liveness Check if not already passed
+        if not self.liveness_passed:
+            liveness_result = await sync_to_async(self.liveness_service.update)(img)
+            
+            if liveness_result["status"] == "pending":
+                # Need more frames, send feedback to UI
+                await self.send(text_data=json.dumps({
+                    'type': 'liveness_feedback',
+                    'message': liveness_result["feedback_ui"],
+                }))
+                return
+            elif liveness_result["status"] == "failed":
+                # Timeout or spoofing detected — reset and allow retry
+                self.liveness_passed = False
+                self.liveness_service.reset()
+                await self.send(text_data=json.dumps({
+                    'type': 'result',
+                    'result': {'success': False, 'feedback_ui': liveness_result["feedback_ui"]},
+                }))
+                return
+            else:
+                # Passed!
+                self.liveness_passed = True
+                await self.send(text_data=json.dumps({
+                    'type': 'liveness_feedback',
+                    'message': liveness_result["feedback_ui"],  # "Xác thực thành công!"
+                }))
         
-        # Send "processing" acknowledgement immediately
+        # 3. Liveness passed -> Dispatch Face Recognition
+        # Send "processing" acknowledgement
         await self.send(text_data=json.dumps({
             'type': 'processing',
             'step': 1,
-            'message': 'Đang gửi ảnh lên server...',
+            'message': 'Đang nhận diện danh tính...',
         }))
         
-        # Dispatch Celery task with this group_name so it can push results back
         try:
             from attendance.tasks import identify_face_task
-            task = identify_face_task.delay(image_data, previous_image_data, self.group_name)
+            # Remove previous_image_data since we don't use MSE anymore
+            task = identify_face_task.delay(image_data, None, self.group_name)
             
             await self.send(text_data=json.dumps({
                 'type': 'processing',
@@ -102,10 +144,14 @@ class KioskConsumer(AsyncWebsocketConsumer):
                 'task_id': task.id,
                 'message': 'Đang phân tích đặc trưng khuôn mặt...',
             }))
+            
+            # Reset liveness for the next person after sending to Celery
+            self.liveness_passed = False
+            self.liveness_service.reset()
+            
         except Exception as e:
-            # Celery unavailable — run sync fallback
             logger.warning(f"Celery unavailable: {e}")
-            await self.run_sync_fallback(image_data, previous_image_data)
+            await self.run_sync_fallback(image_data, None)
     
     async def run_sync_fallback(self, image_data, previous_image_data=None):
         """Synchronous fallback when Celery is unavailable."""
@@ -129,25 +175,7 @@ class KioskConsumer(AsyncWebsocketConsumer):
             from attendance.services.face_service import FaceService
             face_service = FaceService()
             
-            # [ANTI-SPOOFING] Liveness Check if previous frame is provided
-            if previous_image_data:
-                prev_img_bytes = base64.b64decode(previous_image_data)
-                prev_img_array = np.frombuffer(prev_img_bytes, np.uint8)
-                prev_img = cv2.imdecode(prev_img_array, cv2.IMREAD_COLOR)
-                
-                if prev_img is not None:
-                    is_live = await sync_to_async(face_service.verify_liveness)(img, prev_img)
-                    if not is_live:
-                        await self.send(text_data=json.dumps({
-                            'type': 'result',
-                            'result': {
-                                'success': False, 
-                                'error': 'Phát hiện ảnh tĩnh/giả mạo!',
-                                'feedback_ui': 'Cảnh báo: Phát hiện khuôn mặt không có vi biểu cảm thật. Vui lòng thử lại.'
-                            },
-                        }))
-                        return
-                        
+            # [ANTI-SPOOFING] Old MSE logic removed because LivenessService handles it now.
             result = await sync_to_async(face_service.identify_face)(img)
             
             if not result['success']:

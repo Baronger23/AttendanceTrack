@@ -78,8 +78,8 @@ class FaceService:
                     'error': 'Không phát hiện khuôn mặt trong ảnh!',
                 }
             
-            # 3. Align face using landmarks
-            aligned = align_face(processed, face['landmarks'], output_size=112)
+            # 3. Align face using landmarks (160x160 for FaceNet)
+            aligned = align_face(processed, face['landmarks'], output_size=160)
             
             # 4. Preprocess for embedding
             aligned = preprocess_for_embedding(aligned)
@@ -165,55 +165,6 @@ class FaceService:
             'confidence': detection_confidence,
         }
     
-    # ==================== LIVENESS DETECTION ====================
-    
-    def verify_liveness(self, current_frame: np.ndarray, previous_frame: np.ndarray) -> bool:
-        """
-        [DEMO LEVEL] Anti-Spoofing / Liveness check using 2 sequential frames.
-        Detects if the user is a real person by measuring subtle facial movements
-        (e.g., eye blinking, slight head movement) between two frames.
-        Returns False if the face is completely static (likely a printed photo or phone screen).
-        """
-        if current_frame is None or previous_frame is None:
-            return False
-            
-        try:
-            # 1. Detect landmarks in both frames
-            curr_processed = preprocess_for_detection(current_frame)
-            prev_processed = preprocess_for_detection(previous_frame)
-            
-            curr_face = self.detector.detect_largest(curr_processed)
-            prev_face = self.detector.detect_largest(prev_processed)
-            
-            if not curr_face or not prev_face:
-                return False
-                
-            # 2. Calculate movement variance (MSE of landmarks)
-            curr_lms = np.array(curr_face['landmarks'])
-            prev_lms = np.array(prev_face['landmarks'])
-            
-            mse = np.mean((curr_lms - prev_lms) ** 2)
-            
-            # If MSE is extremely low, it's a static image (spoof). 
-            # If MSE is too high, it might be a different person or heavy motion blur.
-            # A real person standing still will have slight micro-movements (MSE between 0.5 and 15.0).
-            MIN_MOVEMENT_THRESHOLD = 0.5
-            MAX_MOVEMENT_THRESHOLD = 15.0
-            
-            is_live = bool(MIN_MOVEMENT_THRESHOLD < mse < MAX_MOVEMENT_THRESHOLD)
-            
-            logger.info(json.dumps({
-                "event": "liveness_check",
-                "mse_movement": float(mse),
-                "is_live": is_live
-            }))
-            
-            return is_live
-            
-        except Exception as e:
-            logger.error(f"Liveness check failed: {e}")
-            return False
-
     # ==================== IDENTIFICATION ====================
     
     def identify_face(self, image: np.ndarray) -> dict:
@@ -248,8 +199,8 @@ class FaceService:
                     'error': 'Không phát hiện khuôn mặt! Vui lòng đảm bảo khuôn mặt rõ ràng, đủ sáng.',
                 }
             
-            # 3. Align face
-            aligned = align_face(processed, face['landmarks'], output_size=112)
+            # 3. Align face (160x160 for FaceNet)
+            aligned = align_face(processed, face['landmarks'], output_size=160)
             
             # 4. Preprocess for embedding
             aligned = preprocess_for_embedding(aligned)

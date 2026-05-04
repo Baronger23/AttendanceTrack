@@ -21,11 +21,7 @@ def identify_face_task(self, image_base64: str, previous_image_base64: str = Non
     
     Args:
         image_base64: Base64 encoded JPEG image
-        previous_image_base64: Previous Base64 frame for liveness check (Optional)
-    
-    Returns:
-        dict with: user_id, user_name, user_full_name, confidence, 
-                   avatar_url, shift_name, status, message
+        channel_group_name: Name of the websocket channel
     """
     try:
         # Decode base64 images
@@ -42,22 +38,9 @@ def identify_face_task(self, image_base64: str, previous_image_base64: str = Non
         from attendance.services.face_service import FaceService
         face_service = FaceService()
         
-        # [ANTI-SPOOFING] Liveness Check if previous frame is provided
-        if previous_image_base64:
-            prev_img_bytes = base64.b64decode(previous_image_base64)
-            prev_img_array = np.frombuffer(prev_img_bytes, np.uint8)
-            prev_img = cv2.imdecode(prev_img_array, cv2.IMREAD_COLOR)
-            
-            if prev_img is not None:
-                is_live = face_service.verify_liveness(img, prev_img)
-                if not is_live:
-                    task_result = {
-                        'success': False,
-                        'error': 'Phát hiện ảnh tĩnh/giả mạo!',
-                        'feedback_ui': 'Cảnh báo: Phát hiện khuôn mặt không có vi biểu cảm thật. Vui lòng thử lại.',
-                    }
-                    _push_to_websocket(channel_group_name, task_result)
-                    return task_result
+        # NOTE: Liveness is now handled directly by the WebSocket consumer
+        # before this Celery task is even dispatched. This saves Celery queue
+        # from being spammed with liveness frames.
         
         # Run CNN pipeline
         result = face_service.identify_face(img)

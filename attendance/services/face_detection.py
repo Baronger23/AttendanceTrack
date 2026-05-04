@@ -13,6 +13,36 @@ import logging
 from PIL import Image
 from facenet_pytorch import MTCNN
 import torch
+import warnings
+
+# Suppress TF logging
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+warnings.filterwarnings('ignore')
+
+try:
+    # Monkeypatch for Keras 3.x compatibility with RetinaFace
+    import tensorflow as tf
+    try:
+        from keras.src.layers.pooling.max_pooling2d import MaxPooling2D
+    except ImportError:
+        try:
+            from tensorflow.keras.layers import MaxPooling2D
+        except ImportError:
+            MaxPooling2D = None
+            
+    if MaxPooling2D is not None:
+        original_init = MaxPooling2D.__init__
+        def patched_init(self, pool_size=(2, 2), strides=None, padding='valid', **kwargs):
+            if isinstance(padding, str):
+                padding = padding.lower()
+            original_init(self, pool_size=pool_size, strides=strides, padding=padding, **kwargs)
+        MaxPooling2D.__init__ = patched_init
+
+    from retinaface import RetinaFace
+    RETINA_AVAILABLE = True
+except ImportError:
+    RETINA_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -35,21 +65,21 @@ class FaceDetector:
         # Use GPU if available, otherwise CPU
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        # MTCNN with tuned parameters for attendance system
         self.mtcnn = MTCNN(
             image_size=160,
             margin=20,
-            min_face_size=20,           # Minimum face size in pixels (lowered for webcam)
-            thresholds=[0.5, 0.6, 0.6], # P-Net, R-Net, O-Net thresholds (lowered for robustness)
-            factor=0.709,               # Scale factor for image pyramid
-            select_largest=False,       # Don't auto-select, we handle it
-            keep_all=True,              # Return all detected faces
+            min_face_size=20,
+            thresholds=[0.5, 0.6, 0.6],
+            factor=0.709,
+            select_largest=False,
+            keep_all=True,
             device=self.device,
-            post_process=False,         # Don't normalize (we do it ourselves)
+            post_process=False,
         )
         
+        self.use_retina = RETINA_AVAILABLE
         self._initialized = True
-        logger.info(f"MTCNN initialized on {self.device}")
+        logger.info(f"Detector initialized (RetinaFace: {self.use_retina}, Fallback MTCNN: {self.device})")
     
     def detect(self, image: np.ndarray):
         """
@@ -67,38 +97,70 @@ class FaceDetector:
         """
         if image is None:
             return []
+            
+        results = []
         
-        # Convert BGR numpy to PIL Image (RGB) — required by facenet-pytorch MTCNN
-        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(rgb_image)
+        if self.use_retina:
+            try:
+                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                faces = RetinaFace.detect_faces(rgb_image)
+                if isinstance(faces, dict):
+                    for key, face in faces.items():
+                        score = face.get("score", 0.0)
+                        if score < 0.5: continue
+                        
+                        box = face["facial_area"]  # [x1, y1, x2, y2]
+                        landmarks_dict = face.get("landmarks", {})
+                        
+                        # Extract 5 points
+                        if len(landmarks_dict) == 5:
+                            landmark = np.array([
+                                landmarks_dict["left_eye"],
+                                landmarks_dict["right_eye"],
+                                landmarks_dict["nose"],
+                                landmarks_dict["mouth_left"],
+                                landmarks_dict["mouth_right"]
+                            ], dtype=np.float32)
+                        else:
+                            landmark = None
+                            
+                        results.append({
+                            'box': box,
+                            'confidence': float(score),
+                            'landmarks': landmark
+                        })
+                    
+                    if results:
+                        results.sort(key=lambda x: x['confidence'], reverse=True)
+                        return results
+            except Exception as e:
+                logger.error(f"RetinaFace detection failed, falling back to MTCNN: {e}")
         
-        # Detect faces
+        # Fallback to MTCNN
         try:
+            rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            pil_image = Image.fromarray(rgb_image)
             boxes, probs, landmarks = self.mtcnn.detect(pil_image, landmarks=True)
+            
+            if boxes is not None and probs is not None:
+                for i in range(len(boxes)):
+                    if probs[i] is None or probs[i] < 0.5:
+                        continue
+                    
+                    box = boxes[i].astype(int).tolist()
+                    landmark = landmarks[i] if landmarks is not None else None
+                    if landmark is not None and len(landmark) != 5:
+                        landmark = None
+                        
+                    results.append({
+                        'box': box,
+                        'confidence': float(probs[i]),
+                        'landmarks': landmark,
+                    })
         except Exception as e:
             logger.error(f"MTCNN detection failed: {e}")
-            return []
-        
-        if boxes is None or probs is None:
-            return []
-        
-        results = []
-        for i in range(len(boxes)):
-            if probs[i] is None or probs[i] < 0.5:
-                continue
             
-            box = boxes[i].astype(int).tolist()
-            landmark = landmarks[i] if landmarks is not None else None
-            
-            results.append({
-                'box': box,  # [x1, y1, x2, y2]
-                'confidence': float(probs[i]),
-                'landmarks': landmark,  # (5, 2) array
-            })
-        
-        # Sort by confidence (highest first)
         results.sort(key=lambda x: x['confidence'], reverse=True)
-        
         return results
     
     def detect_largest(self, image: np.ndarray):
@@ -113,10 +175,23 @@ class FaceDetector:
         
         if not faces:
             return None
+            
+        img_h, img_w = image.shape[:2]
+        center_x, center_y = img_w / 2, img_h / 2
         
-        # Find the face with largest bounding box area
-        def box_area(face):
+        # Select best face by Area and Distance to Center
+        def evaluate_face(face):
             x1, y1, x2, y2 = face['box']
-            return max(0, x2 - x1) * max(0, y2 - y1)
-        
-        return max(faces, key=box_area)
+            area = max(0, x2 - x1) * max(0, y2 - y1)
+            
+            face_cx = (x1 + x2) / 2
+            face_cy = (y1 + y2) / 2
+            
+            # Distance from center of image
+            dist_to_center = np.sqrt((face_cx - center_x)**2 + (face_cy - center_y)**2)
+            
+            # Combine area and distance (heuristic: prioritize area, but penalize distance heavily if multiple faces)
+            score = area - (dist_to_center * 50)
+            return score
+            
+        return max(faces, key=evaluate_face)
