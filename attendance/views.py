@@ -777,22 +777,6 @@ def kiosk_checkin_async(request):
             
             face_service = FaceService()
             
-            # [ANTI-SPOOFING] Liveness Check if previous frame is provided
-            if previous_image_data:
-                prev_img_bytes = base64.b64decode(previous_image_data)
-                prev_img_array = np.frombuffer(prev_img_bytes, np.uint8)
-                prev_img = cv2.imdecode(prev_img_array, cv2.IMREAD_COLOR)
-                
-                if prev_img is not None:
-                    is_live = face_service.verify_liveness(img, prev_img)
-                    if not is_live:
-                        return JsonResponse({
-                            'success': False, 
-                            'error': 'Phát hiện ảnh tĩnh/giả mạo!',
-                            'feedback_ui': 'Cảnh báo: Phát hiện khuôn mặt không có vi biểu cảm thật. Vui lòng thử lại.',
-                            'mode': 'sync'
-                        })
-            
             result = face_service.identify_face(img)
             
             if not result['success']:

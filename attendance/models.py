@@ -2,9 +2,10 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 import json
 import numpy as np
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from django.conf import settings
+from django.utils import timezone
 
 try:
     from pgvector.django import VectorField, HnswIndex
@@ -97,22 +98,30 @@ class AttendanceLog(models.Model):
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ON_TIME)
     snapshot = models.ImageField(upload_to='attendance_snaps/', null=True, blank=True)
 
+    def calculate_status(self, reference_dt=None):
+        """Calculate check-in status using the user's shift and grace period."""
+        if not self.user or not self.user.work_shift:
+            return self.status
+
+        reference_dt = timezone.localtime(reference_dt or timezone.now())
+        shift = self.user.work_shift
+        shift_start_dt = datetime.combine(reference_dt.date(), shift.start_time)
+
+        if shift.start_time > shift.end_time and reference_dt.time() <= shift.end_time:
+            shift_start_dt -= timedelta(days=1)
+
+        grace_minutes = max(0, shift.late_grace_period or 0)
+        late_cutoff = shift_start_dt + timedelta(minutes=grace_minutes)
+
+        if reference_dt.replace(tzinfo=None) > late_cutoff:
+            return self.Status.LATE
+        return self.Status.ON_TIME
+
     # Logic tự động tính toán Đi Muộn hay Đúng Giờ ngay khi lưu
     def save(self, *args, **kwargs):
         # Nếu chưa có status (lần tạo đầu tiên) và User có ca làm việc
-        if not self.pk and self.user.work_shift:
-            shift = self.user.work_shift
-            check_in_time = datetime.now().time()
-            
-            # Logic so sánh giờ (cơ bản)
-            # Chuyển đổi grace_period thành phút để cộng (Logic này cần xử lý kỹ hơn chút với datetime)
-            # Ở đây mình demo logic so sánh thô:
-            if check_in_time > shift.start_time:
-                # Cần logic cộng phút grace_period phức tạp hơn ở view, 
-                # nhưng đây là chỗ để bạn hình dung logic.
-                self.status = self.Status.LATE 
-            else:
-                self.status = self.Status.ON_TIME
+        if not self.pk and self.user.work_shift and self.status != self.Status.ABSENT:
+            self.status = self.calculate_status()
                 
         super().save(*args, **kwargs)
 

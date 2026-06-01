@@ -155,3 +155,31 @@ class FaceServiceDoubleValidationTest(TestCase):
         # Assert
         self.assertFalse(result['success'])
         self.assertEqual(result.get('error'), 'Unknown')
+
+
+class FaceServiceFallbackSearchTest(TestCase):
+    def test_python_fallback_requires_55_percent_confidence(self):
+        face_service = FaceService.__new__(FaceService)
+        query = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        known = np.array([0.54, np.sqrt(1 - 0.54 ** 2), 0.0], dtype=np.float32)
+
+        with patch(
+            'attendance.services.cache_service.FaceCacheService.get_all_embeddings',
+            return_value=[(known, 123)],
+        ):
+            result = face_service._search_python_fallback(query)
+
+        self.assertIsNone(result)
+
+    def test_python_fallback_accepts_match_above_55_percent(self):
+        face_service = FaceService.__new__(FaceService)
+        query = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        known = np.array([0.56, np.sqrt(1 - 0.56 ** 2), 0.0], dtype=np.float32)
+
+        with patch(
+            'attendance.services.cache_service.FaceCacheService.get_all_embeddings',
+            return_value=[(known, 123)],
+        ):
+            result = face_service._search_python_fallback(query)
+
+        self.assertEqual(result['user_id'], 123)

@@ -398,7 +398,7 @@ class FaceService:
         all_cached_embeddings = FaceCacheService.get_all_embeddings()
         
         best_match_id = None
-        best_similarity = 0.55  # Minimum threshold (55%)
+        best_similarity = 55.0  # Minimum confidence threshold in percent
         
         for known_encoding, user_id in all_cached_embeddings:
             # Cosine similarity between embeddings
