@@ -87,6 +87,10 @@ class LivenessService:
         self.TEMPORAL_STD_MIN = getattr(settings, "LIVENESS_TEMPORAL_STD_MIN", 0.005)
         self.TEMPORAL_STD_MAX = getattr(settings, "LIVENESS_TEMPORAL_STD_MAX", 0.08)
         self.timeout_seconds = getattr(settings, "LIVENESS_TIMEOUT_SECONDS", 8.0)
+        self.MIN_PASS_FRAMES = getattr(settings, "LIVENESS_MIN_PASS_FRAMES", 8)
+        self.PASS_SCORE_THRESHOLD = getattr(settings, "LIVENESS_PASS_SCORE_THRESHOLD", 0.52)
+        self.REPLAY_RISK_THRESHOLD = getattr(settings, "LIVENESS_REPLAY_RISK_THRESHOLD", 0.72)
+        self.ANTISPOOF_SPOOF_THRESHOLD = getattr(settings, "ANTISPOOF_SPOOF_THRESHOLD", 0.65)
 
         # Session state
         self.frame_buffer: list = []
@@ -95,6 +99,12 @@ class LivenessService:
         self.movement_detected: bool = False
         self.consistency_passed: bool = False
         self.session_start: float = time.time()
+
+        # Anti-spoofing and Replay detectors (In-Memory Only)
+        from .anti_spoofing_service import AntiSpoofingService
+        from .replay_attack_detector import ReplayAttackDetector
+        self.anti_spoofing = AntiSpoofingService()
+        self.replay_detector = ReplayAttackDetector()
 
     # ------------------------------------------------------------------
     # Public interface
@@ -107,6 +117,8 @@ class LivenessService:
         self.movement_detected = False
         self.consistency_passed = False
         self.session_start = time.time()
+        if hasattr(self, "replay_detector"):
+            self.replay_detector.reset()
 
     # ------------------------------------------------------------------
     # Stub methods — implemented in Tasks 3-6
@@ -139,6 +151,35 @@ class LivenessService:
             face_landmarks_raw = results.multi_face_landmarks[0].landmark
             h, w = image.shape[:2]
             landmarks = [(lm.x * w, lm.y * h) for lm in face_landmarks_raw]
+
+            # Run Anti-Spoofing and Replay Attack checks
+            anti_spoof = self.anti_spoofing.predict(image, landmarks)
+            if anti_spoof.get("spoof_score", 0.0) >= self.ANTISPOOF_SPOOF_THRESHOLD:
+                logger.warning(
+                    "Anti-spoofing model rejected frame: live=%.3f spoof=%.3f",
+                    anti_spoof.get("live_score", 0.0),
+                    anti_spoof.get("spoof_score", 0.0),
+                )
+                self.reset()
+                return {
+                    "status": "failed",
+                    "feedback_ui": "Phát hiện khả năng giả mạo khuôn mặt, vui lòng thử lại trực tiếp trước camera.",
+                }
+
+            replay_risk = self.replay_detector.update(image, landmarks)
+            if replay_risk.score >= self.REPLAY_RISK_THRESHOLD or replay_risk.suspicious:
+                logger.warning(
+                    "Replay attack suspected: score=%.3f phone_frame=%.3f planar=%.3f screen=%.3f",
+                    replay_risk.score,
+                    replay_risk.phone_frame,
+                    replay_risk.planar_motion,
+                    replay_risk.screen_artifact,
+                )
+                self.reset()
+                return {
+                    "status": "failed",
+                    "feedback_ui": "Phát hiện khả năng dùng màn hình điện thoại, vui lòng dùng khuôn mặt thật trước camera.",
+                }
 
             # 4. Compute EAR for both eyes
             left_ear = self.compute_ear(landmarks, LEFT_EYE)
@@ -190,14 +231,21 @@ class LivenessService:
             # Temporal consistency check (buffer >= 10)
             if len(self.frame_buffer) >= 10:
                 self.consistency_passed = self._check_temporal_consistency()
-                if not self.consistency_passed:
+                if not self.consistency_passed and self.blink_detected and self.movement_detected:
                     self.reset()
                     return {"status": "failed", "feedback_ui": "Phát hiện hành vi bất thường, vui lòng thử lại tự nhiên."}
             else:
                 self.consistency_passed = False
 
             # Hybrid decision: all 3 layers must pass
-            if self.blink_detected and self.movement_detected and self.consistency_passed:
+            liveness_score = self._active_liveness_score()
+
+            enough_frames = len(self.frame_buffer) >= self.MIN_PASS_FRAMES
+            strong_active_signal = self.blink_detected or self.movement_detected
+            score_passed = liveness_score >= self.PASS_SCORE_THRESHOLD
+            classic_passed = self.blink_detected and self.movement_detected and self.consistency_passed
+
+            if enough_frames and strong_active_signal and (score_passed or classic_passed):
                 return {"status": "passed", "feedback_ui": "Xác thực thành công!"}
 
             # Dynamic feedback for pending state
@@ -215,6 +263,31 @@ class LivenessService:
         except Exception as e:
             logger.error(f"Unexpected error in LivenessService.update(): {e}")
             return {"status": "pending", "feedback_ui": "Lỗi xử lý frame, vui lòng thử lại."}
+
+    def _active_liveness_score(self) -> float:
+        """Combine active challenge signals into a forgiving live-user score."""
+        if not self.frame_buffer:
+            return 0.0
+
+        ears = [f["ear"] for f in self.frame_buffer]
+        yaws = [f["yaw"] for f in self.frame_buffer]
+        pitches = [f["pitch"] for f in self.frame_buffer]
+
+        ear_range = max(ears) - min(ears)
+        yaw_range = max(yaws) - min(yaws)
+        pitch_range = max(pitches) - min(pitches)
+        movement_range = max(
+            yaw_range / max(self.YAW_RANGE_MIN, 1e-6),
+            pitch_range / max(self.PITCH_RANGE_MIN, 1e-6),
+        )
+
+        blink_score = 1.0 if self.blink_detected else float(np.clip(ear_range / max(self.EAR_AMPLITUDE_MIN, 1e-6), 0.0, 1.0))
+        movement_score = 1.0 if self.movement_detected else float(np.clip(movement_range, 0.0, 1.0))
+        consistency_score = 1.0 if self.consistency_passed else 0.0
+        frame_score = float(np.clip(len(self.frame_buffer) / max(self.MIN_PASS_FRAMES, 1), 0.0, 1.0))
+
+        score = (0.42 * blink_score) + (0.42 * movement_score) + (0.10 * consistency_score) + (0.06 * frame_score)
+        return round(float(np.clip(score, 0.0, 1.0)), 3)
 
     def compute_ear(self, landmarks: list, eye_indices: list) -> float:
         """

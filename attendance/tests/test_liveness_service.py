@@ -70,6 +70,7 @@ def make_service():
     ):
         from attendance.services.liveness_service import LivenessService
         service = LivenessService()
+        service.anti_spoofing.enabled = False
 
     return service
 

@@ -203,5 +203,15 @@ LIVENESS_YAW_RANGE_MIN = 8.0          # Minimum yaw range (degrees) for head mov
 LIVENESS_PITCH_RANGE_MIN = 6.0        # Minimum pitch range (degrees) for head movement
 LIVENESS_TEMPORAL_STD_MIN = 0.005     # Minimum temporal std dev for natural motion
 LIVENESS_TEMPORAL_STD_MAX = 0.08      # Maximum temporal std dev (above = too noisy)
-LIVENESS_TIMEOUT_SECONDS = 8.0        # Maximum seconds allowed for liveness check
+LIVENESS_TIMEOUT_SECONDS = 8.0       # Maximum seconds allowed for liveness check
+LIVENESS_MIN_PASS_FRAMES = 8          # Minimum frame count before liveness can pass
+LIVENESS_PASS_SCORE_THRESHOLD = 0.52  # Score threshold for active liveness pass
+LIVENESS_REPLAY_RISK_THRESHOLD = 0.72 # Phone/screen replay attack risk threshold
+ANTISPOOF_ONNX_MODEL_PATH = os.getenv('ANTISPOOF_ONNX_MODEL_PATH', '')
+ANTISPOOF_INPUT_SIZE = (80, 80)
+ANTISPOOF_LIVE_CLASS_INDEX = int(os.getenv('ANTISPOOF_LIVE_CLASS_INDEX', '1'))
+ANTISPOOF_SPOOF_THRESHOLD = float(os.getenv('ANTISPOOF_SPOOF_THRESHOLD', '0.65'))
+ANTISPOOF_CROP_SCALE = float(os.getenv('ANTISPOOF_CROP_SCALE', '2.7'))
+
+
 
