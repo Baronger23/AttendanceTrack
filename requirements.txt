@@ -15,7 +15,7 @@ scikit-learn
 scikit-image
 joblib
 opencv-python-headless
-mediapipe==0.10.21
+mediapipe==0.10.30
 
 # Property-Based Testing
 hypothesis

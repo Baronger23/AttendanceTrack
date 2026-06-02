@@ -10,6 +10,8 @@
 
 ## Bước 2: Cấu Hình Storage Policies
 
+Nếu Django backend dùng `SUPABASE_SERVICE_ROLE_KEY`, các policy này không bắt buộc cho upload/xóa từ server. Chúng vẫn hữu ích khi bạn muốn cho phép client hoặc token thường truy cập bucket.
+
 Vào **Storage** > **Policies** > Chọn bucket **Timekeeping**, sau đó click **New Policy**.
 
 ### Policy 1: Upload Files (INSERT)
@@ -19,6 +21,8 @@ Click **"For full customization"** và điền:
 - **Allowed operation:** Chọn **INSERT**
 - **Target roles:** Chọn **authenticated**
 - **WITH CHECK expression:** `bucket_id = 'Timekeeping'`
+
+Nếu bạn vẫn dùng anon key, policy này phải tồn tại để tránh lỗi `new row violates row-level security policy`.
 
 Hoặc đơn giản hơn: Click **"Allow all"** cho INSERT operation.
 
@@ -84,7 +88,7 @@ https://wyucizqcpzaglxtmqlmp.supabase.co/storage/v1/object/public/Timekeeping/av
 ## Xử Lý Lỗi Thường Gặp
 
 ### Lỗi: "new row violates row-level security policy"
-→ Kiểm tra lại Storage Policies, đảm bảo đã cho phép INSERT
+→ Kiểm tra lại Storage Policies, hoặc cấu hình backend dùng `SUPABASE_SERVICE_ROLE_KEY` để upload bằng quyền admin
 
 ### Lỗi: "Bucket not found"
 → Kiểm tra tên bucket trong .env phải khớp với tên trên Supabase (Timekeeping)

@@ -190,8 +190,9 @@
                     <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.5rem;">
                         {% if staff %}Tải ảnh mới để thay thế{% else %}Tải ảnh khuôn mặt{% endif %}
                     </p>
-                    <p style="font-size:0.72rem;color:#a0aec0;margin-bottom:0.75rem;">5 – 10 ảnh, từ nhiều góc độ khác
-                        nhau</p>
+                    <p style="font-size:0.72rem;color:#a0aec0;margin-bottom:0.75rem;">
+                        {% if staff %}Đúng 5 ảnh, từ nhiều góc độ khác nhau{% else %}5 – 10 ảnh, từ nhiều góc độ khác nhau{% endif %}
+                    </p>
                     <label for="face_images" class="btn btn-outline-primary btn-sm" style="cursor:pointer;">
                         <i class="fas fa-folder-open fa-xs me-1"></i>Chọn ảnh
                     </label>
@@ -213,7 +214,7 @@
                 </p>
                 {% else %}
                 <p class="mt-2 mb-0" style="font-size:0.75rem;color:var(--text-muted);">
-                    <i class="fas fa-info-circle me-1"></i>Tùy chọn — ảnh cũ sẽ bị thay thế nếu upload mới
+                    <i class="fas fa-info-circle me-1"></i>Tùy chọn — nếu cập nhật, vui lòng chọn đúng 5 ảnh
                 </p>
                 {% endif %}
             </div>
@@ -248,19 +249,29 @@
         const isEdit = form.getAttribute('data-is-edit') === 'true';
 
         if (files.length > 0) {
-            if (files.length < 5) {
-                alert('⚠️ Vui lòng chọn ít nhất 5 ảnh!');
-                this.value = '';
-                fileInfo.style.display = 'none';
-            } else if (files.length > 10) {
-                alert('⚠️ Chỉ được chọn tối đa 10 ảnh!');
-                this.value = '';
-                fileInfo.style.display = 'none';
+            if (isEdit) {
+                if (files.length !== 5) {
+                    alert('⚠️ Vui lòng chọn đúng 5 ảnh để cập nhật Face ID!');
+                    this.value = '';
+                    fileInfo.style.display = 'none';
+                    return;
+                }
             } else {
-                fileCount.textContent = `Đã chọn ${files.length} ảnh`;
-                fileInfo.style.display = 'block';
-                uploadZone.style.borderColor = 'var(--primary)';
+                if (files.length < 5) {
+                    alert('⚠️ Vui lòng chọn ít nhất 5 ảnh!');
+                    this.value = '';
+                    fileInfo.style.display = 'none';
+                    return;
+                } else if (files.length > 10) {
+                    alert('⚠️ Chỉ được chọn tối đa 10 ảnh!');
+                    this.value = '';
+                    fileInfo.style.display = 'none';
+                    return;
+                }
             }
+            fileCount.textContent = `Đã chọn ${files.length} ảnh`;
+            fileInfo.style.display = 'block';
+            uploadZone.style.borderColor = 'var(--primary)';
         }
     });
 
