@@ -85,10 +85,13 @@ DATABASE_URL=postgresql://user:password@host.supabase.co:5432/postgres
 # Supabase Storage
 SUPABASE_URL=https://your-project.supabase.co/
 SUPABASE_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-key
 SUPABASE_BUCKET_NAME=Timekeeping
 ```
 
 > 📘 **Hướng dẫn chi tiết**: Xem [SUPABASE_SETUP.md](SUPABASE_SETUP.md) để biết cách tạo Supabase project và lấy credentials.
+
+> Lưu ý: `SUPABASE_SERVICE_ROLE_KEY` nên dùng cho upload/xóa ảnh từ Django backend; `SUPABASE_KEY` chỉ nên giữ cho các luồng public/read-only.
 
 ### 5. Chạy migrations
 ```bash

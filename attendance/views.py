@@ -7,6 +7,31 @@ from datetime import timedelta
 from .models import User, WorkShift, AttendanceLog, Notification
 
 
+def _get_supabase_client(request=None):
+    """Khởi tạo Supabase client nếu cấu hình đã sẵn sàng."""
+    try:
+        from supabase import create_client
+        from django.conf import settings
+
+        supabase_url = getattr(settings, 'SUPABASE_URL', None)
+        supabase_key = (
+            getattr(settings, 'SUPABASE_SERVICE_ROLE_KEY', None)
+            or getattr(settings, 'SUPABASE_SERVICE_KEY', None)
+            or getattr(settings, 'SUPABASE_KEY', None)
+        )
+        if not supabase_url or not supabase_key:
+            if request is not None:
+                messages.warning(request, 'Supabase chưa được cấu hình, bỏ qua upload/xóa ảnh trên Storage.')
+            return None
+
+        supabase_url = supabase_url.rstrip('/') + '/'
+        return create_client(supabase_url, supabase_key)
+    except Exception as e:
+        if request is not None:
+            messages.warning(request, f'Không thể khởi tạo Supabase: {str(e)}')
+        return None
+
+
 # ==================== AUTHENTICATION ====================
 
 def login_view(request):
@@ -244,24 +269,14 @@ def staff_create(request):
             face_images = request.FILES.getlist('face_images')
             if face_images:
                 try:
-                    from supabase import create_client
                     import os
-                    from django.conf import settings
                     import cv2
                     import numpy as np
+                    from django.conf import settings
                     from attendance.services.face_service import FaceService
                     from attendance.models import FaceEmbedding
-                    
-                    # Đảm bảo SUPABASE_URL có trailing slash
-                    supabase_url = settings.SUPABASE_URL
-                    if not supabase_url.endswith('/'):
-                        supabase_url += '/'
-                    
-                    # Khởi tạo Supabase client
-                    supabase = create_client(
-                        supabase_url,
-                        settings.SUPABASE_KEY
-                    )
+
+                    supabase = _get_supabase_client(request)
                     
                     # Upload ảnh lên Supabase Storage
                     cv_images = []
@@ -272,15 +287,16 @@ def staff_create(request):
                         
                         image.seek(0)
                         file_content = image.read()
-                        
-                        supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
-                            path=file_path,
-                            file=file_content,
-                            file_options={
-                                "content-type": image.content_type,
-                                "upsert": "true"
-                            }
-                        )
+
+                        if supabase is not None:
+                            supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
+                                path=file_path,
+                                file=file_content,
+                                file_options={
+                                    "content-type": image.content_type,
+                                    "upsert": "true"
+                                }
+                            )
                         
                         # Decode image for face processing
                         image.seek(0)
@@ -289,8 +305,11 @@ def staff_create(request):
                         if img is not None:
                             cv_images.append(img)
                     
-                    # Lưu path ảnh đầu tiên vào avatar field
-                    user.avatar = f"avatars/{username} (1){os.path.splitext(face_images[0].name)[1] or '.jpg'}"
+                    # Lưu path ảnh đầu tiên vào avatar field nếu đã upload lên Storage
+                    if supabase is not None:
+                        user.avatar = f"avatars/{username} (1){os.path.splitext(face_images[0].name)[1] or '.jpg'}"
+                    else:
+                        messages.warning(request, 'Supabase chưa được cấu hình, chỉ xử lý embedding cục bộ.')
                     
                     # === CNN Pipeline: Detect → Align → Augment → Embed ===
                     if cv_images:
@@ -353,41 +372,40 @@ def staff_edit(request, pk):
         # Xử lý upload lại ảnh mới (nếu có)
         face_images = request.FILES.getlist('face_images')
         if face_images:
+            if len(face_images) != 5:
+                messages.error(request, 'Vui lòng chọn đúng 5 ảnh khuôn mặt để cập nhật Face ID.')
+                work_shifts = WorkShift.objects.all()
+                context = {'staff': staff, 'work_shifts': work_shifts}
+                return render(request, 'attendance/staff_form.html', context)
             try:
-                from supabase import create_client
                 import os
-                from django.conf import settings
                 import cv2
                 import numpy as np
                 
-                # Đảm bảo SUPABASE_URL có trailing slash
-                supabase_url = settings.SUPABASE_URL
-                if not supabase_url.endswith('/'):
-                    supabase_url += '/'
-                
-                # Khởi tạo Supabase client
-                supabase = create_client(
-                    supabase_url,
-                    settings.SUPABASE_KEY
-                )
+                supabase = _get_supabase_client(request)
                 
                 # Xóa ảnh cũ trước (tìm tất cả ảnh có pattern username (1), username (2), ...)
                 username = staff.username
-                try:
-                    # List tất cả files trong folder avatars
-                    files = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).list('avatars')
-                    
-                    # Xóa các file có tên bắt đầu bằng username
-                    files_to_delete = []
-                    for file in files:
-                        if file['name'].startswith(f"{username} ("):
-                            files_to_delete.append(f"avatars/{file['name']}")
-                    
-                    if files_to_delete:
-                        supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).remove(files_to_delete)
-                        messages.info(request, f'Đã xóa {len(files_to_delete)} ảnh cũ của {username}')
-                except Exception as e:
-                    messages.warning(request, f'Không thể xóa ảnh cũ: {str(e)}')
+                if supabase is not None:
+                    try:
+                        from django.conf import settings
+
+                        # List tất cả files trong folder avatars
+                        files = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).list('avatars')
+                        
+                        # Xóa các file có tên bắt đầu bằng username
+                        files_to_delete = []
+                        for file in files:
+                            if file['name'].startswith(f"{username} ("):
+                                files_to_delete.append(f"avatars/{file['name']}")
+                        
+                        if files_to_delete:
+                            supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).remove(files_to_delete)
+                            messages.info(request, f'Đã xóa {len(files_to_delete)} ảnh cũ của {username}')
+                    except Exception as e:
+                        messages.warning(request, f'Không thể xóa ảnh cũ: {str(e)}')
+                else:
+                    messages.warning(request, 'Supabase chưa được cấu hình, bỏ qua xóa ảnh cũ trên Storage.')
                 
                 # Upload ảnh mới và decode face encoding
                 cv_images = []
@@ -400,15 +418,18 @@ def staff_edit(request, pk):
                     # Upload lên Supabase
                     image.seek(0)
                     file_content = image.read()
-                    
-                    supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
-                        path=file_path,
-                        file=file_content,
-                        file_options={
-                            "content-type": image.content_type,
-                            "upsert": "true"
-                        }
-                    )
+
+                    if supabase is not None:
+                        from django.conf import settings
+
+                        supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
+                            path=file_path,
+                            file=file_content,
+                            file_options={
+                                "content-type": image.content_type,
+                                "upsert": "true"
+                            }
+                        )
                     
                     # Decode image for face processing
                     image.seek(0)
@@ -417,8 +438,9 @@ def staff_edit(request, pk):
                     if img is not None:
                         cv_images.append(img)
                 
-                # Cập nhật avatar path
-                staff.avatar = f"avatars/{username} (1){os.path.splitext(face_images[0].name)[1] or '.jpg'}"
+                # Cập nhật avatar path khi upload lên Storage thành công
+                if supabase is not None:
+                    staff.avatar = f"avatars/{username} (1){os.path.splitext(face_images[0].name)[1] or '.jpg'}"
                 
                 # === CNN Pipeline: Detect → Align → Augment → Embed ===
                 if cv_images:
@@ -470,17 +492,17 @@ def staff_delete(request, pk):
     if request.method == 'POST':
         # Xóa ảnh trên Supabase Storage trước khi xóa user
         try:
-            from supabase import create_client
-            from django.conf import settings
-            
-            supabase = create_client(
-                settings.SUPABASE_URL,
-                settings.SUPABASE_KEY
-            )
+            supabase = _get_supabase_client(request)
+            if supabase is None:
+                staff.delete()
+                messages.success(request, 'Đã xóa nhân viên!')
+                return redirect('staff_list')
             
             # Tìm và xóa tất cả ảnh của nhân viên này
             username = staff.username
             try:
+                from django.conf import settings
+
                 files = supabase.storage.from_(settings.SUPABASE_BUCKET_NAME).list('avatars')
                 files_to_delete = []
                 for file in files:
@@ -1064,8 +1086,7 @@ def monthly_report(request):
     if request.user.role != User.Role.ADMIN:
         return redirect('staff_dashboard')
     
-    from datetime import datetime, date
-    import calendar
+    from datetime import datetime
     from django.db.models import Count, Q
     
     # Lấy tháng/năm từ request (mặc định: tháng hiện tại)
@@ -1073,36 +1094,42 @@ def monthly_report(request):
     month = int(request.GET.get('month', now.month))
     year = int(request.GET.get('year', now.year))
     
-    # Số ngày làm việc trong tháng (trừ thứ 7, CN)
-    _, days_in_month = calendar.monthrange(year, month)
-    workdays = 0
-    for day in range(1, days_in_month + 1):
-        d = date(year, month, day)
-        if d.weekday() < 5:  # Thứ 2-6
-            workdays += 1
+    # Lọc dữ liệu theo khoảng thời gian local month để tránh sai lệch múi giờ
+    tz = timezone.get_current_timezone()
+    month_start = timezone.make_aware(datetime(year, month, 1, 0, 0, 0), tz)
+    if month == 12:
+        month_end = timezone.make_aware(datetime(year + 1, 1, 1, 0, 0, 0), tz)
+    else:
+        month_end = timezone.make_aware(datetime(year, month + 1, 1, 0, 0, 0), tz)
     
     # Thống kê bằng 1 query duy nhất (thay vì N queries cho N nhân viên)
     staff_members = User.objects.filter(
         role=User.Role.STAFF
     ).select_related('work_shift').annotate(
         on_time=Count('logs', filter=Q(
-            logs__timestamp__year=year,
-            logs__timestamp__month=month,
+            logs__timestamp__gte=month_start,
+            logs__timestamp__lt=month_end,
             logs__status=AttendanceLog.Status.ON_TIME
         )),
         late=Count('logs', filter=Q(
-            logs__timestamp__year=year,
-            logs__timestamp__month=month,
+            logs__timestamp__gte=month_start,
+            logs__timestamp__lt=month_end,
             logs__status=AttendanceLog.Status.LATE
         )),
         absent=Count('logs', filter=Q(
-            logs__timestamp__year=year,
-            logs__timestamp__month=month,
+            logs__timestamp__gte=month_start,
+            logs__timestamp__lt=month_end,
             logs__status=AttendanceLog.Status.ABSENT
         )),
+        absent_days=Count('logs__timestamp__date', filter=Q(
+            logs__timestamp__gte=month_start,
+            logs__timestamp__lt=month_end,
+            logs__status=AttendanceLog.Status.ABSENT,
+        ), distinct=True),
         days_present=Count('logs__timestamp__date', filter=Q(
-            logs__timestamp__year=year,
-            logs__timestamp__month=month,
+            logs__timestamp__gte=month_start,
+            logs__timestamp__lt=month_end,
+            logs__status__in=[AttendanceLog.Status.ON_TIME, AttendanceLog.Status.LATE],
         ), distinct=True),
     ).order_by('last_name', 'first_name')
     
@@ -1112,22 +1139,25 @@ def monthly_report(request):
     total_absent = 0
     chart_labels = []
     chart_rates = []
+    max_tracked_days = 0
     
     for staff in staff_members:
-        rate = round((staff.days_present / workdays) * 100, 1) if workdays > 0 else 0
+        total_tracked_days = staff.days_present + staff.absent_days
+        rate = round((staff.days_present / total_tracked_days) * 100, 1) if total_tracked_days > 0 else 0
+        max_tracked_days = max(max_tracked_days, total_tracked_days)
         
         report_data.append({
             'staff': staff,
             'days_present': staff.days_present,
             'on_time': staff.on_time,
             'late': staff.late,
-            'absent': staff.absent,
+            'absent': staff.absent_days,
             'rate': rate,
         })
         
         total_on_time += staff.on_time
         total_late += staff.late
-        total_absent += staff.absent
+        total_absent += staff.absent_days
         
         name = staff.get_full_name() or staff.username
         chart_labels.append(name)
@@ -1141,7 +1171,7 @@ def monthly_report(request):
         'report_data': report_data,
         'month': month,
         'year': year,
-        'workdays': workdays,
+        'workdays': max_tracked_days,
         'total_staff': staff_members.count(),
         'total_on_time': total_on_time,
         'total_late': total_late,
