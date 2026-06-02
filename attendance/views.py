@@ -1140,28 +1140,59 @@ def monthly_report(request):
     chart_labels = []
     chart_rates = []
     max_tracked_days = 0
-    
     for staff in staff_members:
-        total_tracked_days = staff.days_present + staff.absent_days
-        rate = round((staff.days_present / total_tracked_days) * 100, 1) if total_tracked_days > 0 else 0
-        max_tracked_days = max(max_tracked_days, total_tracked_days)
-        
+
+        # Tổng số lần có đi làm (KHÔNG tính vắng)
+        total_attendance = staff.on_time + staff.late
+
+        # Tỷ lệ đi muộn
+        late_rate = round(
+            (staff.late / total_attendance) * 100,
+            1
+        ) if total_attendance > 0 else 0
+
+        # Tỷ lệ đúng giờ (CÁI BẠN ĐANG THIẾU)
+        on_time_rate = round(
+            (staff.on_time / total_attendance) * 100,
+            1
+        ) if total_attendance > 0 else 0
+
+        # Tỷ lệ chuyên cần (có đi làm / tổng ngày theo dõi)
+        total_records = staff.on_time + staff.late + staff.absent_days
+
+        attendance_rate = round(
+            (total_attendance / total_records) * 100,
+            1
+        ) if total_records > 0 else 0
+
+        max_tracked_days = max(max_tracked_days, total_records)
+        late_vs_ontime_rate = round(
+            (staff.late / staff.on_time) * 100,
+            1
+        ) if staff.on_time > 0 else 0   
         report_data.append({
             'staff': staff,
             'days_present': staff.days_present,
             'on_time': staff.on_time,
             'late': staff.late,
             'absent': staff.absent_days,
-            'rate': rate,
+            'late_vs_ontime_rate': late_vs_ontime_rate,
+
+            # 3 KPI rõ ràng
+            'late_rate': late_rate,
+            'on_time_rate': on_time_rate,
+            'attendance_rate': attendance_rate,
         })
-        
+
         total_on_time += staff.on_time
         total_late += staff.late
         total_absent += staff.absent_days
-        
+
         name = staff.get_full_name() or staff.username
         chart_labels.append(name)
-        chart_rates.append(rate)
+
+        # dùng cái bạn muốn hiển thị chart
+        chart_rates.append(attendance_rate)
     
     # Tạo danh sách năm cho dropdown (3 năm trước → năm hiện tại)
     year_choices = list(range(now.year - 2, now.year + 1))
