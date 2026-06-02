@@ -92,11 +92,23 @@ class AttendanceLog(models.Model):
         ON_TIME = "ON_TIME", "Đúng giờ"
         LATE = "LATE", "Đi muộn"
         ABSENT = "ABSENT", "Vắng mặt" # Cái này thường dùng khi chạy cronjob cuối ngày
+        MANUAL_REVIEW = "MANUAL_REVIEW", "Cần duyệt"
+        SUSPICIOUS = "SUSPICIOUS", "Nghi ngờ gian lận"
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='logs')
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.ON_TIME)
     snapshot = models.ImageField(upload_to='attendance_snaps/', null=True, blank=True)
+    face_confidence = models.FloatField(null=True, blank=True)
+    liveness_score = models.FloatField(null=True, blank=True)
+    spoof_score = models.FloatField(null=True, blank=True)
+    replay_score = models.FloatField(null=True, blank=True)
+    risk_score = models.FloatField(null=True, blank=True)
+    recognition_method = models.CharField(max_length=50, blank=True, default='')
+    top_candidate_score = models.FloatField(null=True, blank=True)
+    second_candidate_score = models.FloatField(null=True, blank=True)
+    decision_reason = models.TextField(blank=True, default='')
+    evidence = models.JSONField(default=dict, blank=True)
 
     def calculate_status(self, reference_dt=None):
         """Calculate check-in status using the user's shift and grace period."""
@@ -167,6 +179,11 @@ class FaceEmbedding(models.Model):
         AUGMENTED = "augmented", "Ảnh tăng cường"
         REGISTRATION = "registration", "Đăng ký webcam"
 
+    class RecognitionMethod(models.TextChoices):
+        LEGACY_UNKNOWN = "legacy_unknown", "Legacy/không rõ backend"
+        FACENET = "facenet_inceptionresnet", "FaceNet (InceptionResnetV1)"
+        ARCFACE = "insightface_arcface", "InsightFace ArcFace"
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='face_embeddings')
     
     # Vector 512D — sử dụng pgvector nếu có, fallback JSON text nếu không
@@ -179,6 +196,12 @@ class FaceEmbedding(models.Model):
         max_length=20, 
         choices=Source.choices, 
         default=Source.ORIGINAL
+    )
+    recognition_method = models.CharField(
+        max_length=50,
+        choices=RecognitionMethod.choices,
+        default=RecognitionMethod.LEGACY_UNKNOWN,
+        db_index=True,
     )
     quality_score = models.FloatField(default=1.0, help_text="Độ rõ nét và chất lượng của khuôn mặt (0.0 - 1.0)")
     created_at = models.DateTimeField(auto_now_add=True)

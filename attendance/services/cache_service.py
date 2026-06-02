@@ -16,6 +16,17 @@ EMBEDDINGS_KEY_PREFIX = "face_embeddings_v1:"
 USER_CACHE_VERSION_KEY = "face_embeddings_version"
 
 class FaceCacheService:
+    METHOD_FILTERS = {
+        'arcface': {'insightface_arcface'},
+        'facenet': {'facenet_inceptionresnet', 'legacy_unknown', ''},
+    }
+
+    @staticmethod
+    def allowed_methods(method_filter: str | None) -> set:
+        if not method_filter:
+            return set()
+        return FaceCacheService.METHOD_FILTERS.get(method_filter, set())
+
     @staticmethod
     def get_cache_version() -> int:
         """Get the current global version for embeddings cache."""
@@ -41,13 +52,14 @@ class FaceCacheService:
         logger.info(f"Invalidated embedding cache for user {user_id}")
 
     @staticmethod
-    def get_all_embeddings() -> list:
+    def get_all_embeddings(method_filter: str | None = None) -> list:
         """
         Retrieve all embeddings. Uses cache if available.
         Returns a list of tuples: (embedding_numpy_array, user_id)
         """
         version = FaceCacheService.get_cache_version()
-        key = f"{EMBEDDINGS_KEY_PREFIX}{version}:all"
+        filter_key = method_filter or 'all'
+        key = f"{EMBEDDINGS_KEY_PREFIX}{version}:all:{filter_key}"
         
         cached_data = cache.get(key)
         if cached_data is not None:
@@ -57,13 +69,17 @@ class FaceCacheService:
         logger.debug("Embedding cache miss. Fetching from DB.")
         
         # Prioritize high quality embeddings
-        embeddings_qs = FaceEmbedding.objects.all().order_by('-quality_score')
+        embeddings_qs = FaceEmbedding.objects.all()
+        allowed_methods = FaceCacheService.allowed_methods(method_filter)
+        if allowed_methods:
+            embeddings_qs = embeddings_qs.filter(recognition_method__in=allowed_methods)
+        embeddings_qs = embeddings_qs.order_by('-quality_score')
         
         data = []
         for emb in embeddings_qs:
             numpy_arr = emb.get_embedding()
             if numpy_arr is not None:
-                data.append((numpy_arr, emb.user_id))
+                data.append((numpy_arr, emb.user_id, emb.recognition_method or 'legacy_unknown'))
                 
         # Cache for 1 hour
         cache.set(key, data, CACHE_TTL)

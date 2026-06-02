@@ -182,8 +182,13 @@ MEDIA_ROOT = BASE_DIR / 'media'
 AI_MODELS_DIR = BASE_DIR / 'models'
 AI_FACE_EMBEDDING_DIM = 512           # InceptionResnetV1 output dimension
 AI_FACE_CONFIDENCE_THRESHOLD = 55.0   # Minimum confidence (%) for identification
+AI_FACE_MARGIN_THRESHOLD = 6.0        # Minimum top-1 vs top-2 margin (%) for automatic match
 AI_FACE_AUGMENTATION_COUNT = 20       # Number of augmented variants per registration
 AI_CLASSIFIER_MIN_CLASSES = 2         # Minimum people needed to train SVM
+AI_FACE_BACKEND = os.getenv('AI_FACE_BACKEND', 'insightface')
+INSIGHTFACE_MODEL_NAME = os.getenv('INSIGHTFACE_MODEL_NAME', 'buffalo_l')
+INSIGHTFACE_CTX_ID = int(os.getenv('INSIGHTFACE_CTX_ID', '-1'))
+INSIGHTFACE_DET_SIZE = (640, 640)
 
 # Celery Configuration (async task processing)
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
@@ -195,6 +200,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30           # Hard limit: 30 seconds
 CELERY_TASK_SOFT_TIME_LIMIT = 25      # Soft limit: 25 seconds
+KIOSK_USE_CELERY = os.getenv('KIOSK_USE_CELERY', '0') == '1'
 
 # Hybrid Liveness Detection Thresholds
 LIVENESS_EAR_THRESHOLD = 0.22         # Eye Aspect Ratio threshold for blink detection
@@ -203,5 +209,12 @@ LIVENESS_YAW_RANGE_MIN = 8.0          # Minimum yaw range (degrees) for head mov
 LIVENESS_PITCH_RANGE_MIN = 6.0        # Minimum pitch range (degrees) for head movement
 LIVENESS_TEMPORAL_STD_MIN = 0.005     # Minimum temporal std dev for natural motion
 LIVENESS_TEMPORAL_STD_MAX = 0.08      # Maximum temporal std dev (above = too noisy)
-LIVENESS_TIMEOUT_SECONDS = 8.0        # Maximum seconds allowed for liveness check
+LIVENESS_TIMEOUT_SECONDS = 12.0       # Maximum seconds allowed for liveness check
+LIVENESS_MIN_PASS_FRAMES = 8          # Minimum frame count before liveness can pass
+LIVENESS_PASS_SCORE_THRESHOLD = 0.52  # Score threshold for active liveness pass
+LIVENESS_REPLAY_RISK_THRESHOLD = 0.72 # Phone/screen replay attack risk threshold
+ANTISPOOF_ONNX_MODEL_PATH = os.getenv('ANTISPOOF_ONNX_MODEL_PATH', '')
+ANTISPOOF_INPUT_SIZE = (80, 80)
+ANTISPOOF_LIVE_CLASS_INDEX = int(os.getenv('ANTISPOOF_LIVE_CLASS_INDEX', '1'))
+ANTISPOOF_SPOOF_THRESHOLD = float(os.getenv('ANTISPOOF_SPOOF_THRESHOLD', '0.65'))
 

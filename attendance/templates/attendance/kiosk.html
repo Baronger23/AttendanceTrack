@@ -356,19 +356,19 @@
                 <div class="step-list" id="stepList">
                     <div class="step-item" id="step1">
                         <div class="step-icon">1</div>
-                        <span>Xác thực liveness</span>
+                        <span class="step-desc">Xác thực liveness</span>
                     </div>
                     <div class="step-item" id="step2">
                         <div class="step-icon">2</div>
-                        <span>Gửi ảnh lên server</span>
+                        <span class="step-desc">Gửi ảnh lên server</span>
                     </div>
                     <div class="step-item" id="step3">
                         <div class="step-icon">3</div>
-                        <span>Phân tích đặc trưng (CNN 512D)</span>
+                        <span class="step-desc">Phân tích đặc trưng (CNN 512D)</span>
                     </div>
                     <div class="step-item" id="step4">
                         <div class="step-icon">4</div>
-                        <span>Nhận diện nhân viên (SVM)</span>
+                        <span class="step-desc">Nhận diện nhân viên (SVM)</span>
                     </div>
                 </div>
 
@@ -423,6 +423,7 @@
         let lastBox = null;  // For smooth bounding box interpolation
         let ws = null;
         let wsConnected = false;
+        let livenessInFlight = false;
 
         // ==================== WEBSOCKET ====================
         function connectWS() {
@@ -442,6 +443,7 @@
                     if (data.type === 'connected') {
                         console.log('WS session:', data.session_id);
                     } else if (data.type === 'liveness_feedback') {
+                        livenessInFlight = false;
                         // Update liveness hint with color-coded feedback
                         const hint = document.getElementById('liveness-hint');
                         if (hint) {
@@ -459,6 +461,7 @@
                         }
                         setStep(1);
                     } else if (data.type === 'processing') {
+                        livenessInFlight = false;
                         if (window.livenessInterval) {
                             clearInterval(window.livenessInterval);
                             window.livenessInterval = null;
@@ -466,9 +469,13 @@
                         setStep(data.step + 1); // offset: step 1-2 from server = step 3-4 UI
                         if (data.message) {
                             const stepEl = document.getElementById('step' + (data.step + 1));
-                            if (stepEl) stepEl.querySelector('.step-desc').textContent = data.message;
+                            const descEl = stepEl ? stepEl.querySelector('.step-desc') : null;
+                            if (descEl) {
+                                descEl.textContent = data.message;
+                            }
                         }
                     } else if (data.type === 'result') {
+                        livenessInFlight = false;
                         if (window.livenessInterval) {
                             clearInterval(window.livenessInterval);
                             window.livenessInterval = null;
@@ -496,6 +503,7 @@
 
                 ws.onclose = () => {
                     wsConnected = false;
+                    livenessInFlight = false;
                     wsDot.classList.remove('connected');
                     wsLabel.textContent = 'Polling';
                     console.log('WS disconnected, falling back to polling');
@@ -504,6 +512,7 @@
                 };
 
                 ws.onerror = () => {
+                    livenessInFlight = false;
                     wsDot.classList.add('error');
                     wsLabel.textContent = 'Polling (WS lỗi)';
                 };
@@ -662,12 +671,12 @@
                 if (hint) hint.style.display = 'none';
 
                 // Helper to capture a frame from the video
-                function captureFrame() {
+                function captureFrame(cropFace = true) {
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     canvas.getContext('2d').drawImage(video, 0, 0);
                     
-                    if (lastBox && faceApiReady) {
+                    if (cropFace && lastBox && faceApiReady) {
                         const margin = 80;
                         const cx = Math.max(0, Math.floor(lastBox.x - margin));
                         const cy = Math.max(0, Math.floor(lastBox.y - margin));
@@ -687,12 +696,18 @@
                 // [ANTI-SPOOFING] Stream frames to LivenessService over WS
                 if (wsConnected && ws && ws.readyState === WebSocket.OPEN) {
                     window.livenessInterval = setInterval(() => {
-                        let imageData = captureFrame();
+                        if (livenessInFlight) {
+                            return;
+                        }
+                        let imageData = captureFrame(false);
+                        let recognitionImageData = captureFrame(true);
+                        livenessInFlight = true;
                         ws.send(JSON.stringify({ 
                             type: 'checkin', 
-                            image: imageData
+                            image: imageData,
+                            recognition_image: recognitionImageData
                         }));
-                    }, 200); // 5 FPS
+                    }, 330); // ~3 FPS to avoid flooding liveness pipeline on CPU
                 } else {
                     // AJAX + polling fallback (Single frame only, liveness might fail)
                     let imageData = captureFrame();

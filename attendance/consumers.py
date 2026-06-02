@@ -16,6 +16,28 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 logger = logging.getLogger(__name__)
 
 
+def _json_safe(value):
+    """Convert AI/debug objects to JSON-safe values for WebSocket responses."""
+    try:
+        import numpy as np
+    except Exception:
+        np = None
+
+    if np is not None and isinstance(value, np.ndarray):
+        return value.tolist()
+    if np is not None and isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, dict):
+        return {
+            key: _json_safe(val)
+            for key, val in value.items()
+            if key not in {"embedding", "all_embeddings"}
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 class KioskConsumer(AsyncWebsocketConsumer):
     
     async def connect(self):
@@ -40,6 +62,7 @@ class KioskConsumer(AsyncWebsocketConsumer):
         from attendance.services.liveness_service import LivenessService
         self.liveness_service = LivenessService()
         self.liveness_passed = False
+        self.last_liveness_result = {}
         
         # Send connection confirmation
         await self.send(text_data=json.dumps({
@@ -73,6 +96,7 @@ class KioskConsumer(AsyncWebsocketConsumer):
     async def handle_checkin(self, data):
         """Dispatch face recognition to Celery worker."""
         image_data = data.get('image', '')
+        recognition_image_data = data.get('recognition_image') or image_data
         import base64
         import cv2
         import numpy as np
@@ -81,6 +105,8 @@ class KioskConsumer(AsyncWebsocketConsumer):
         # Strip data URL prefix
         if ',' in image_data:
             image_data = image_data.split(',', 1)[1]
+        if ',' in recognition_image_data:
+            recognition_image_data = recognition_image_data.split(',', 1)[1]
             
         # 1. Decode image for Liveness Check
         try:
@@ -120,6 +146,7 @@ class KioskConsumer(AsyncWebsocketConsumer):
             else:
                 # Passed!
                 self.liveness_passed = True
+                self.last_liveness_result = liveness_result
                 await self.send(text_data=json.dumps({
                     'type': 'liveness_feedback',
                     'message': liveness_result["feedback_ui"],  # "Xác thực thành công!"
@@ -133,10 +160,25 @@ class KioskConsumer(AsyncWebsocketConsumer):
             'message': 'Đang nhận diện danh tính...',
         }))
         
+        from django.conf import settings
+        if not getattr(settings, "KIOSK_USE_CELERY", False):
+            await self.send(text_data=json.dumps({
+                'type': 'processing',
+                'step': 2,
+                'message': 'Äang phÃ¢n tÃ­ch Ä‘áº·c trÆ°ng khuÃ´n máº·t...',
+            }))
+            try:
+                await self.run_sync_fallback(recognition_image_data, None)
+            finally:
+                self.liveness_passed = False
+                self.last_liveness_result = {}
+                self.liveness_service.reset()
+            return
+
         try:
             from attendance.tasks import identify_face_task
             # Remove previous_image_data since we don't use MSE anymore
-            task = identify_face_task.delay(image_data, None, self.group_name)
+            task = identify_face_task.delay(recognition_image_data, None, self.group_name, self.last_liveness_result)
             
             await self.send(text_data=json.dumps({
                 'type': 'processing',
@@ -147,11 +189,12 @@ class KioskConsumer(AsyncWebsocketConsumer):
             
             # Reset liveness for the next person after sending to Celery
             self.liveness_passed = False
+            self.last_liveness_result = {}
             self.liveness_service.reset()
             
         except Exception as e:
             logger.warning(f"Celery unavailable: {e}")
-            await self.run_sync_fallback(image_data, None)
+            await self.run_sync_fallback(recognition_image_data, None)
     
     async def run_sync_fallback(self, image_data, previous_image_data=None):
         """Synchronous fallback when Celery is unavailable."""
@@ -181,31 +224,19 @@ class KioskConsumer(AsyncWebsocketConsumer):
             if not result['success']:
                 await self.send(text_data=json.dumps({
                     'type': 'result',
-                    'result': result,
+                    'result': _json_safe(result),
                 }))
                 return
             
-            from attendance.models import User, AttendanceLog
-            from django.utils import timezone
+            from attendance.models import User
+            from attendance.services.attendance_policy import AttendancePolicyService
             
             user = await sync_to_async(User.objects.get)(id=result['user_id'])
-            today = timezone.now().date()
-            
-            existing_log = await sync_to_async(
-                AttendanceLog.objects.filter(user=user, timestamp__date=today).first
-            )()
-            
-            if existing_log:
-                checkin_status = 'already_checked'
-                ts = await sync_to_async(lambda: existing_log.timestamp.strftime("%H:%M"))()
-                full_name = await sync_to_async(user.get_full_name)()
-                msg = f'{full_name} đã chấm công hôm nay lúc {ts}!'
-            else:
-                log = await sync_to_async(AttendanceLog.objects.create)(user=user)
-                full_name = await sync_to_async(user.get_full_name)()
-                status_display = await sync_to_async(log.get_status_display)()
-                checkin_status = 'success'
-                msg = f'Chấm công thành công! Xin chào {full_name} - {status_display}'
+            decision = await sync_to_async(AttendancePolicyService.record_checkin)(
+                user=user,
+                recognition_result=result,
+                liveness_result=getattr(self, "last_liveness_result", {}),
+            )
             
             avatar_url = await sync_to_async(user.get_avatar_url)() or ''
             shift_name = ''
@@ -223,8 +254,10 @@ class KioskConsumer(AsyncWebsocketConsumer):
                     'confidence': result['confidence'],
                     'avatar_url': avatar_url,
                     'shift_name': shift_name,
-                    'checkin_status': checkin_status,
-                    'message': msg,
+                    'checkin_status': decision.checkin_status,
+                    'message': decision.message,
+                    'risk_score': decision.risk_score,
+                    'attendance_status': decision.status,
                 }
             }))
         except Exception as e:
@@ -238,5 +271,5 @@ class KioskConsumer(AsyncWebsocketConsumer):
         """Receive result from Celery task and push to browser."""
         await self.send(text_data=json.dumps({
             'type': 'result',
-            'result': event['result'],
+            'result': _json_safe(event['result']),
         }))

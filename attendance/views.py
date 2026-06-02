@@ -300,12 +300,14 @@ def staff_create(request):
                         if result['success']:
                             # Lưu embedding trung bình vào User (backward compatible)
                             user.set_encoding(result['embedding'])
+                            embedding_method = result.get('method') or 'facenet_inceptionresnet'
                             
                             # Lưu tất cả embeddings vào FaceEmbedding table (pgvector)
                             for i, emb in enumerate(result['all_embeddings']):
                                 fe = FaceEmbedding(
                                     user=user,
                                     source='original' if i == 0 else 'augmented',
+                                    recognition_method=embedding_method,
                                 )
                                 fe.set_embedding(np.array(emb))
                                 fe.save()
@@ -432,6 +434,7 @@ def staff_edit(request, pk):
                     if result['success']:
                         # Lưu embedding trung bình vào User (backward compatible)
                         staff.set_encoding(result['embedding'])
+                        embedding_method = result.get('method') or 'facenet_inceptionresnet'
                         
                         # Xóa embeddings cũ và lưu mới vào FaceEmbedding table
                         FaceEmbedding.objects.filter(user=staff).delete()
@@ -439,6 +442,7 @@ def staff_edit(request, pk):
                             fe = FaceEmbedding(
                                 user=staff,
                                 source='original' if i == 0 else 'augmented',
+                                recognition_method=embedding_method,
                             )
                             fe.set_embedding(np.array(emb))
                             fe.save()
@@ -788,20 +792,12 @@ def kiosk_checkin_async(request):
                 })
             
             user = User.objects.get(id=result['user_id'])
-            today = timezone.now().date()
-            
-            # Check existing log
-            existing_log = AttendanceLog.objects.filter(
-                user=user, timestamp__date=today
-            ).first()
-            
-            if existing_log:
-                checkin_status = 'already_checked'
-                msg = f'{user.get_full_name()} đã chấm công hôm nay lúc {existing_log.timestamp.strftime("%H:%M")}!'
-            else:
-                log = AttendanceLog.objects.create(user=user)
-                checkin_status = 'success'
-                msg = f'Chấm công thành công! Xin chào {user.get_full_name()} - {log.get_status_display()}'
+            from attendance.services.attendance_policy import AttendancePolicyService
+            decision = AttendancePolicyService.record_checkin(
+                user=user,
+                recognition_result=result,
+                liveness_result={},
+            )
             
             return JsonResponse({
                 'success': True,
@@ -814,8 +810,10 @@ def kiosk_checkin_async(request):
                     'confidence': result['confidence'],
                     'avatar_url': user.get_avatar_url() or '',
                     'shift_name': user.work_shift.name if user.work_shift else '',
-                    'checkin_status': checkin_status,
-                    'message': msg,
+                    'checkin_status': decision.checkin_status,
+                    'message': decision.message,
+                    'risk_score': decision.risk_score,
+                    'attendance_status': decision.status,
                 }
             })
         except Exception as sync_e:
@@ -985,10 +983,12 @@ def face_register(request):
             
             # Lưu vào FaceEmbedding table (pgvector)
             FaceEmbedding.objects.filter(user=request.user).delete()
+            embedding_method = result.get('method') or 'facenet_inceptionresnet'
             for i, emb in enumerate(result['all_embeddings']):
                 fe = FaceEmbedding(
                     user=request.user,
                     source='registration' if i == 0 else 'augmented',
+                    recognition_method=embedding_method,
                 )
                 fe.set_embedding(np.array(emb))
                 fe.save()

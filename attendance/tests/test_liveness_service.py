@@ -100,8 +100,8 @@ class TestTimeoutTriggersFailedAndReset(unittest.TestCase):
 
     def test_timeout_triggers_failed_and_reset(self):
         service = make_service()
-        # Simulate that the session started 9 seconds ago
-        service.session_start = time.time() - 9.0
+        # Simulate that the session exceeded the configured timeout.
+        service.session_start = time.time() - (service.timeout_seconds + 1.0)
 
         result = service.update(np.zeros((480, 640, 3), dtype=np.uint8))
 
@@ -234,6 +234,8 @@ class TestDefaultThresholdsWithoutSettings(unittest.TestCase):
             "LIVENESS_TEMPORAL_STD_MIN",
             "LIVENESS_TEMPORAL_STD_MAX",
             "LIVENESS_TIMEOUT_SECONDS",
+            "LIVENESS_MIN_PASS_FRAMES",
+            "LIVENESS_PASS_SCORE_THRESHOLD",
         ]
 
         # Save originals and delete them so getattr uses the hardcoded defaults

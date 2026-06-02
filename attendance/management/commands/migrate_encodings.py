@@ -119,6 +119,7 @@ class Command(BaseCommand):
                     # Save new 512D encoding to User
                     staff.set_encoding(result['embedding'])
                     staff.save()
+                    embedding_method = result.get('method') or 'facenet_inceptionresnet'
 
                     # Save to FaceEmbedding table
                     # Clear old embeddings first
@@ -129,6 +130,7 @@ class Command(BaseCommand):
                         fe = FaceEmbedding(
                             user=staff,
                             source='original' if i == 0 else 'augmented',
+                            recognition_method=embedding_method,
                         )
                         fe.set_embedding(np.array(emb))
                         fe.save()
